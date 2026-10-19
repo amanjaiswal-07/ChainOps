@@ -1,207 +1,547 @@
-## Multi-Agent Supply Chain Control Tower
+# ChainOps: Multi-Agent Supply Chain Control Tower
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-blue?style=plastic&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Frontend-Streamlit-ff4b4b?style=plastic&logo=streamlit&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-32CD32?style=plastic)
-![LangSmith](https://img.shields.io/badge/Monitoring-LangSmith-FFFF00?style=plastic)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=plastic&logo=fastapi&logoColor=white)
+![Streamlit](https://img.shields.io/badge/UI-Streamlit-ff4b4b?style=plastic&logo=streamlit&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen?style=plastic)
 
-A minimal, educational **Multi-Agent Supply Chain Control Tower** built with Python, LangGraph, SQLAlchemy, and SQLite.  
-The system focuses on **explainable decisions**, **simple architecture**, and a **thin UI for inspection**, not production use.
+ChainOps reacts to supply chain events (a stock drop, a late shipment, a demand spike). It checks the data, runs five LangGraph agents to recommend a replenishment action, and holds any risky order until a named person approves it. Every decision is stored with the evidence behind it, and the whole workflow is tested against 18 scenarios.
 
-This project is designed as a **thin, elegant UI** on top of a **well-structured multi-agent backend**, ideal for demos, interviews, and experimentation with agentic workflows in real-world operations.
+It is a portfolio prototype. Orders are **simulated**: an approved order becomes a row in a local SQLite table. No ERP or supplier system is contacted.
 
----
-
-## Features
-
-- **Multi-agent architecture** with distinct responsibilities:
-  - **Demand Agent** – Classifies demand risk and explains its reasoning.
-  - **Inventory Agent** – Decides whether to reorder and how much.
-  - **Risk Agent** – Evaluates supplier and logistics risk.
-  - **Logistics Agent** – Decides whether to expedite shipments.
-  - **Coordinator Agent** – Synthesizes all signals into a final decision.
-- **LangGraph workflow** (`create_supply_chain_graph`) that:
-  - Ingests a database snapshot.
-  - Runs agents in a structured flow.
-  - Routes through a **decision gate** and **human approval** when needed.
-- **Governance & safety layer**:
-  - Risk-aware decision routing.
-  - Optional human-in-the-loop approval before execution.
-- **Streamlit UI**:
-  - One-click “Run Supply Chain Decision Cycle”.
-  - Rich visualization of state, reasoning, and final outcomes.
-  - Governance metrics clearly surfaced.
+![Decision cycle in the Streamlit UI](docs/screenshots/decision-cycle.png)
 
 ---
 
-## Project Structure
+## Contents
 
-At a high level:
-
-- **`src/`** – Core backend logic
-  - `graph.py` – LangGraph state machine wiring nodes and agents.
-  - `state.py` – Typed state model for the workflow.
-  - `agents/` – Agent node implementations (demand, inventory, risk, logistics, coordinator).
-  - `nodes/` – Non-agent nodes (data ingestion, decision gate, execution, human approval).
-  - `db_service.py`, `db_init.py`, `models.py` – SQLite-based supply chain data and schema.
-  - `backend_interface.py` – Simple entry point the UI calls (`run_one_cycle`).
-  - `main.py` – CLI / console entry point for running async multi-product cycles.
-- **`ui/`** – Streamlit visualization layer
-  - `app.py` – Main Streamlit app.
-  - `helpers.py` – UI formatting helpers (currency, percentages, truncation, etc.).
-- **`data/`**
-  - `supply_chain.db` – SQLite database used by the workflow.
-- **Root**
-  - `requirements.txt` – Python dependencies.
-  - `.env` (not committed) – API keys and environment config.
+1. [Problem](#1-problem)
+2. [Key capabilities](#2-key-capabilities)
+3. [Architecture](#3-architecture)
+4. [Agents and workflow](#4-agents-and-workflow)
+5. [Event-driven execution](#5-event-driven-execution)
+6. [Data validation](#6-data-validation)
+7. [Human approval lifecycle](#7-human-approval-lifecycle)
+8. [Decision and audit records](#8-decision-and-audit-records)
+9. [API](#9-api)
+10. [Scenario simulator (UI)](#10-scenario-simulator-ui)
+11. [Evaluation methodology and results](#11-evaluation-methodology-and-results)
+12. [Installation and configuration](#12-installation-and-configuration)
+13. [Running it](#13-running-it)
+14. [Tests](#14-tests)
+15. [What is simulated and what is real](#15-what-is-simulated-and-what-is-real)
+16. [Known limitations](#16-known-limitations)
+17. [Future improvements](#17-future-improvements)
+18. [Project structure](#18-project-structure)
 
 ---
 
-## Architecture Overview
+## 1. Problem
 
-<p align="center">
-  <img src="ui/arch_diagram.png" alt="Multi-Agent Supply Chain Control Tower Architecture" width="800"/>
-</p>
+A replenishment planner watches stock, supplier reliability, shipments and demand, and decides whether to reorder, how much, from whom, and whether to pay for faster shipping. An LLM agent can help reason over these signals, but three things stop you from letting it place orders on its own:
 
-## Getting Started
+* **Bad data in, bad orders out.** A warehouse feed that reports -15 units should stop the process, not produce a confident recommendation.
+* **LLM output is not reliable enough to act on directly.** It can be malformed, it can contradict the stated rules, or the API can be down.
+* **Someone has to be accountable.** High-risk spend needs a named approver, and you need to reconstruct later why an order was placed.
 
-### 1. Clone & set up environment
+ChainOps is built around those three constraints.
+
+## 2. Key capabilities
+
+| Capability | How it is done | Where |
+|---|---|---|
+| Multi-agent orchestration | LangGraph `StateGraph`: ingestion, validation, 5 agents, decision gate, approval routing | `src/graph.py` |
+| Event-triggered workflows | Pydantic event schemas, trigger thresholds, idempotent `event_id` | `src/events.py`, `src/workflow.py` |
+| API integration | FastAPI: events, decision cycles, decision lookup, approve / reject / retry | `src/api.py` |
+| Validation before AI | Business rules on the data; failures stop the graph before any agent runs | `src/validation.py`, `src/nodes/data_validation.py` |
+| AI-output validation | Strict parsers + Pydantic models; every LLM answer is cross-checked against a deterministic rule baseline | `src/agents/outputs.py`, `src/agents/rules.py` |
+| Human-in-the-loop governance | Explicit approval policy; compare-and-set state machine; recommendation and execution are separate states | `src/nodes/decision_gate.py`, `src/governance.py` |
+| Traceable decisions | One audit record per decision: input, validation report, agent trace with timings, outputs, risk reasons, review, execution, errors | `src/models.py` (`DecisionRecord`) |
+| Systematic evaluation | 18 scenarios with deterministic assertions, fault injection, metrics report | `evals/` |
+| Runs without an API key | `offline` mode answers with the rule baselines, clearly labelled | `src/llm_config.py` |
+
+## 3. Architecture
+
+```mermaid
+flowchart LR
+    subgraph Triggers
+        WH[Webhook sender<br/>scripts/event_simulator.py webhook]
+        SC[Scheduled scanner<br/>scripts/event_simulator.py scan]
+        UI[Streamlit UI<br/>ui/app.py]
+    end
+
+    WH -->|POST /events| API[FastAPI<br/>src/api.py]
+    SC -->|POST /events or in-process| API
+    UI -->|direct call| WF
+
+    API --> WF[Workflow runner<br/>src/workflow.py]
+    WF -->|1. idempotency, event rules, trigger| EV[events.py]
+    WF -->|2. run| G[LangGraph graph<br/>src/graph.py]
+    G -->|reads snapshot| DB[(SQLite<br/>data/supply_chain.db)]
+    G -->|agent prompts| LLM[LLM via OpenRouter<br/>or offline rule baseline]
+    WF -->|3. record result| GOV[Governance<br/>src/governance.py]
+    API -->|approve / reject / retry| GOV
+    UI -->|approve / reject| GOV
+    GOV -->|decision_records, purchase_orders| DB
+```
+
+Design rule: **the graph has no side effects.** It reads the database and produces a recommendation plus a routing outcome. Only `governance.py` changes a decision's status or writes a purchase order, and only from an approved state.
+
+## 4. Agents and workflow
+
+```mermaid
+flowchart TD
+    A[ingest_data<br/>DB snapshot + event/scenario overlay] --> B[validate_data<br/>business rules]
+    B -->|errors| X[validation_failed<br/>no agent runs]
+    B -->|valid| D[demand_agent]
+    D --> I[inventory_agent]
+    I --> R[risk_agent]
+    R --> L[logistics_agent]
+    L --> C[coordinator]
+    C --> GATE{decision_gate<br/>approval policy}
+    GATE -->|LOW| AUTO[auto_approve<br/>AUTO_APPROVED or NO_ACTION_REQUIRED]
+    GATE -->|HIGH| HUMAN[human_approval<br/>PENDING_APPROVAL, cycle stops]
+    X --> E((end))
+    AUTO --> E
+    HUMAN --> E
+```
+
+Agents run in sequence because each one reads the previous agents' outputs from the shared state.
+
+| Agent | Decides | How the decision is made |
+|---|---|---|
+| Demand | demand risk LOW/HIGH | LLM classifies using the rules in its prompt; cross-checked by `demand_rule` |
+| Inventory | REORDER/HOLD and quantity | **Deterministic code** (stock < reorder point, top up to 2x reorder point, capped at `MAX_ORDER_QUANTITY`). The LLM only writes the explanation. |
+| Risk | supplier risk, logistics risk | LLM classifies; cross-checked by `risk_rule` (reliability < 90%, shipment > 7 days, overdue, none) |
+| Logistics | expedite yes/no | LLM decides using three criteria; cross-checked by `logistics_rule` |
+| Coordinator | final action, supplier, quantity, expedite | LLM synthesizes; decision type, quantity and expedite must match the inventory and logistics agents; supplier is the LLM's choice if it exists |
+
+### How LLM answers are trusted (or not)
+
+Every agent's prompt already stated explicit rules. `src/agents/rules.py` encodes the same rules in code, and `outputs.resolve()` reconciles the two:
+
+* **Malformed output or LLM failure** (missing field, value outside the allowed set, two conflicting values, timeout): the rule answer is used and the output is flagged `output_valid: false`.
+* **Risk levels:** the LLM may escalate (LOW to HIGH) but never downgrade.
+* **Actions and flags:** the deterministic rule wins.
+* **Any disagreement** is recorded and forces human approval.
+
+So the LLM can make a decision more cautious and explain it, but cannot on its own make an unsafe order go through.
+
+## 5. Event-driven execution
+
+| Event type | Payload | Triggers a cycle when | Effect on the snapshot |
+|---|---|---|---|
+| `INVENTORY_LEVEL_CHANGED` | `observed_quantity` | observed stock < reorder point | stock replaced with the observed value |
+| `SHIPMENT_DELAYED` | `delay_days`, optional `shipment_id` | `delay_days >= SHIPMENT_DELAY_THRESHOLD_DAYS` (2) | ETA pushed back |
+| `DEMAND_SPIKE` | `demand_multiplier` | multiplier >= `DEMAND_SPIKE_THRESHOLD` (1.25) | reorder point scaled (see note) |
+
+Pipeline for `POST /events`:
+
+```mermaid
+sequenceDiagram
+    participant S as Sender (webhook)
+    participant A as API
+    participant W as workflow.py
+    participant G as LangGraph
+    participant D as governance / DB
+    S->>A: POST /events {event_id, event_type, ...}
+    A->>A: Pydantic schema check (422 on failure)
+    A->>W: process_event
+    W->>D: insert RECEIVED record (event_id UNIQUE)
+    alt event_id already seen
+        D-->>A: existing decision, duplicate=true (HTTP 200)
+    else new event
+        W->>W: event rules (stale / future timestamp, product exists)
+        W->>W: trigger rule (threshold)
+        W->>G: run graph with event overlay
+        G-->>W: recommendation + routing
+        W->>D: store record, status PENDING_APPROVAL / NO_ACTION_REQUIRED / ...
+        A-->>S: 201 {decision_id, status, risk_level, recommended_action, approval_required}
+    end
+```
+
+Events never modify the database. An event is turned into an **overlay**, applied to an in-memory copy of the snapshot, so it goes through exactly the same validation, agents and governance as any other cycle.
+
+**Demand modelling note.** The data model has no demand history, only a reorder point. Since a reorder point is roughly lead-time demand plus safety stock, a demand change of factor *m* is modelled as an effective reorder point of `ceil(reorder_point * m)`. This is a stated assumption, not a forecast.
+
+**Automated triggering demo** (`scripts/event_simulator.py`):
+
+* `webhook` plays the external systems and posts nine events: a trigger, a replay of the same `event_id`, below-threshold events, a schema violation, a stale event and a cross-product reference.
+* `scan` is a scheduled monitor: every `--interval` seconds it raises `INVENTORY_LEVEL_CHANGED` for products below their reorder point. Its `event_id` contains product, quantity and hour, so repeated scans of an unchanged situation are recognised as duplicates.
+
+Processing is **synchronous**: the cycle runs inside the request, and the response carries its final status. There is no background queue.
+
+## 6. Data validation
+
+Three separate layers, because they catch different problems:
+
+| Layer | Question | Mechanism | On failure |
+|---|---|---|---|
+| 1. Schema | Is the payload well-formed? | Pydantic models with `extra="forbid"`, ranges, discriminated union on `event_type` | HTTP 422, nothing recorded |
+| 2. Business rules | Is the data believable? | `validation.validate_snapshot`, `events.check_event_rules` | `VALIDATION_FAILED` record, **no agent runs** |
+| 3. AI output | Is the LLM answer usable and consistent? | `agents/outputs.py` parsers, Pydantic models, rule cross-check | rule fallback, flagged, forces approval |
+
+Business rules (thresholds in `src/config.py`, overridable in `.env`):
+
+| Errors (block the cycle) | Warnings (cycle runs, approval forced) |
+|---|---|
+| negative stock; non-integer or missing quantity | PO open longer than `STALE_PO_DAYS` with no shipment |
+| reorder point missing or <= 0 | in-transit shipment with no expected arrival date |
+| missing inventory record; duplicate inventory rows | |
+| no suppliers; reliability outside 0..1; lead time <= 0 | |
+| PO with unknown supplier or quantity <= 0 | |
+| shipment pointing at a PO that is not open for this product | |
+| unknown supplier / shipment referenced by an event or scenario | |
+| unparseable timestamps; event older than 24 h or in the future | |
+| event for a product that does not exist | |
+
+Operational risks such as a late shipment or an unreliable supplier are **not** validation failures. The data is fine; the situation is bad. Those are for the agents.
+
+![Validation stops a cycle before any agent runs](docs/screenshots/validation-failure.png)
+
+## 7. Human approval lifecycle
+
+**Approval policy** (`src/nodes/decision_gate.py`). A REORDER needs a human if any of these is true:
+
+1. demand, supplier or logistics risk is HIGH
+2. any of those signals is missing or UNKNOWN
+3. an agent's LLM output failed validation (rule fallback used)
+4. an LLM answer disagreed with the deterministic rule
+5. the quantity exceeds `APPROVAL_QUANTITY_THRESHOLD` (300)
+6. the quantity was capped at `MAX_ORDER_QUANTITY` (1000)
+7. the data passed validation only with warnings
+
+A HOLD places no order, so it never needs approval (the original project's rule). The reasons are still recorded.
+
+**State machine** (`src/governance.py`):
+
+```mermaid
+stateDiagram-v2
+    [*] --> RECEIVED
+    RECEIVED --> NOT_TRIGGERED: event below threshold
+    RECEIVED --> VALIDATION_FAILED: bad input
+    RECEIVED --> FAILED: workflow error
+    RECEIVED --> NO_ACTION_REQUIRED: HOLD
+    RECEIVED --> AUTO_APPROVED: low-risk REORDER
+    RECEIVED --> PENDING_APPROVAL: high-risk REORDER
+    PENDING_APPROVAL --> APPROVED: approve
+    PENDING_APPROVAL --> REJECTED: reject
+    APPROVED --> EXECUTING
+    AUTO_APPROVED --> EXECUTING
+    EXECUTING --> EXECUTED
+    EXECUTING --> EXECUTION_FAILED
+    EXECUTION_FAILED --> EXECUTING: retry
+```
+
+Guarantees, each covered by a test:
+
+* A recommendation is never executed because it was generated; execution only starts from `APPROVED` or `AUTO_APPROVED`.
+* Every transition is a compare-and-set `UPDATE ... WHERE status IN (...)`. Five threads approving the same decision at once produce exactly one execution and one PO (`test_concurrent_approvals_execute_once`).
+* A repeated approve, an approve after reject, or approving a HOLD returns **409** with the current status.
+* The PO insert and the `EXECUTED` status are one transaction. If it fails, nothing is written, the record becomes `EXECUTION_FAILED` with the error, and `retry-execution` is safe.
+* Reviewer name, note and timestamps are stored on the record.
+
+## 8. Decision and audit records
+
+Table `decision_records`, one row per decision:
+
+| Field group | Fields |
+|---|---|
+| Identity and input | `decision_id`, `trigger` (MANUAL / EVENT / SCENARIO), `event_type`, `event_id`, `product_id`, `input_payload`, `dry_run` |
+| What the system saw | `snapshot` (data the agents actually used, after overlay), `validation_status`, `validation_report` |
+| What it concluded | `agent_trace` (ordered nodes with ms timings), `agent_outputs` (each with `meta`: answer source, validity, issues, disagreements, rule baseline), `final_decision`, `risk_level`, `risk_reasons`, `approval_required`, `llm_mode` |
+| What happened | `status`, `reviewed_by`, `review_note`, `reviewed_at`, `execution_result`, `executed_at`, `error` |
+| Timing | `latency_ms`, `created_at`, `updated_at` |
+
+The record shows **recorded evidence**: the inputs, each agent's output and the policy rules that fired. It does not generate an after-the-fact explanation. No API keys or credentials are stored, and errors keep only the exception type and a short message.
+
+Structured JSON logs (`src/logging_config.py`) record cycle completion and every status transition with the decision id.
+
+![Approvals and audit tab](docs/screenshots/approvals-audit.png)
+
+## 9. API
+
+Interactive docs at `http://localhost:8000/docs`.
+
+| Method | Path | Purpose | Notable responses |
+|---|---|---|---|
+| GET | `/health` | liveness, LLM mode, product count | 200 |
+| GET | `/products` | product list | 200 |
+| POST | `/events` | receive a business event | 201 new, **200 duplicate**, 422 schema |
+| POST | `/decision-cycles` | run a cycle on demand; with `overlay` it is a dry-run scenario | 201, 404 unknown product |
+| GET | `/decisions?status=&limit=` | list decision summaries | 200 |
+| GET | `/decisions/{id}` | full audit record | 200, 404 |
+| POST | `/decisions/{id}/approve` | approve and execute | 200, **409** invalid transition |
+| POST | `/decisions/{id}/reject` | reject | 200, 409 |
+| POST | `/decisions/{id}/retry-execution` | retry a failed execution | 200, 409 |
+
+Cross-cutting: bodies over `MAX_REQUEST_BYTES` (16 KB) get **413**; missing LLM config in `live` mode gets **503** with an actionable message; unexpected errors get a generic **500** `{"error": "internal_error", "error_id": ...}` with no stack trace.
+
+**Example: an event that triggers a cycle**
 
 ```bash
-git clone <your-repo-url> "Supply Chain Agent"
-cd "Supply Chain Agent"
+curl -X POST http://localhost:8000/events -H "content-type: application/json" -d "{\"event_id\": \"wms-1001\", \"event_type\": \"INVENTORY_LEVEL_CHANGED\", \"product_id\": 2, \"observed_quantity\": 30, \"occurred_at\": \"2026-10-20T09:00:00Z\", \"source\": \"wms-webhook\"}"
+```
 
-python -m venv venv
-venv\Scripts\activate  # On Windows
-# source venv/bin/activate  # On macOS / Linux
+```json
+{
+  "decision_id": "dec_3f9a1c2b7e4d",
+  "status": "PENDING_APPROVAL",
+  "trigger": "EVENT",
+  "event_type": "INVENTORY_LEVEL_CHANGED",
+  "product_id": 2,
+  "validation_status": "PASSED",
+  "risk_level": "HIGH",
+  "risk_reasons": ["demand risk is HIGH", "supplier risk is HIGH", "logistics risk is HIGH"],
+  "recommended_action": {"decision_type": "REORDER", "supplier_id": 1, "quantity": 170, "expedite": true},
+  "approval_required": true,
+  "execution_result": null,
+  "error": null,
+  "duplicate": false,
+  "trigger_reason": "observed stock 30 is below reorder point 100",
+  "links": {"self": "/decisions/dec_3f9a1c2b7e4d", "approve": "/decisions/dec_3f9a1c2b7e4d/approve", "reject": "/decisions/dec_3f9a1c2b7e4d/reject"}
+}
+```
 
+(`occurred_at` must be within the last 24 hours; use the current time.)
+
+**Approve it**
+
+```bash
+curl -X POST http://localhost:8000/decisions/dec_3f9a1c2b7e4d/approve -H "content-type: application/json" -d "{\"reviewer\": \"aman\", \"note\": \"stock critical\"}"
+```
+
+```json
+{
+  "status": "EXECUTED",
+  "execution_result": {
+    "mode": "local_db",
+    "action": "PURCHASE_ORDER_CREATED",
+    "po_id": 3,
+    "message": "Simulated procurement: purchase order #3 written to the local database. No external system was contacted."
+  }
+}
+```
+
+Approving again returns `409 {"error": "invalid_transition", "current_status": "EXECUTED", "attempted": "APPROVED", ...}`.
+
+**What-if scenario through the API** (always a dry run)
+
+```bash
+curl -X POST http://localhost:8000/decision-cycles -H "content-type: application/json" -d "{\"product_id\": 1, \"overlay\": {\"demand_multiplier\": 3.0}}"
+```
+
+![API docs](docs/screenshots/api-docs.png)
+
+## 10. Scenario simulator (UI)
+
+The Streamlit app has three tabs:
+
+* **Decision cycle**: the original one-click cycle per product, now showing the full record with approve / reject buttons.
+* **Scenario simulator**: pick a preset or adjust stock, demand multiplier, shipment delay and open orders. The scenario runs through the real graph as a dry run. A baseline vs scenario table shows exactly what changed.
+* **Approvals and audit**: pending queue, all decisions with status filter, and full inspection of any record.
+
+Presets (`src/scenarios.py`) and what they produce with the seed data:
+
+| Scenario | Overlay | Outcome |
+|---|---|---|
+| Baseline | none | HOLD, no action |
+| Low inventory | Widget A stock 250 to 60 | REORDER 140, approval required |
+| Sudden demand increase | Widget A demand x3 | REORDER 350, approval required (also over the 300 threshold) |
+| Supplier delay | shipment +10 days, supplier reliability 95% to 80% | logistics risk HIGH, but HOLD: stock still covers the reorder point |
+| Conflicting signals | stock 120, no open orders | demand and logistics HIGH vs inventory HOLD; coordinator follows inventory, HOLD |
+| Data-quality failure | Widget B stock -15 | VALIDATION_FAILED, no agent runs |
+| Order ceiling | Widget C demand x8 | order capped at 1000, approval required |
+
+Every number on these screens comes from the recorded decision, not from hard-coded mock screens.
+
+![Scenario simulator with baseline comparison](docs/screenshots/scenario-demand-spike.png)
+
+## 11. Evaluation methodology and results
+
+`evals/scenarios.json` holds 18 scenarios. `evals/run_evals.py` runs each through the real workflow on a fresh seeded database and checks it with **deterministic assertions** on structured fields: status, decision type, quantity, risk level, approval routing, specific agent fields, validation error codes, PO counts and governance outcomes.
+
+Coverage:
+
+| Category | Scenarios |
+|---|---|
+| Baseline / stable demand | S01 |
+| Event triggers and thresholds | S02 demand spike, S03 supplier delay on a critical product, S16 below threshold |
+| Data validation | S04 negative stock, S05 schema violation, S15 stale event, S17 inconsistent reference |
+| Governance | S06 high-risk order over ceiling, S08 approved, S09 rejected (and cannot execute afterwards) |
+| Conflicting agent signals | S07 |
+| AI-output validation (fault injection) | S10 malformed coordinator output, S12 unsafe LLM answers (LLM says LOW risk and HOLD when rules say HIGH and REORDER) |
+| Failure recovery | S11 LLM unavailable for every agent, S14 execution failure then retry |
+| Idempotency | S13 duplicate webhook, S18 double approval |
+
+Fault-injection scenarios replace one agent's LLM answer with malformed text, an unsafe answer, or a raised `TimeoutError`.
+
+LLM free text is never compared with exact strings. One explicitly defined text criterion is reported: the coordinator's explanation must mention the actual stock level ("grounded"). There is no LLM-as-judge; it would add non-determinism and is not needed for the properties tested.
+
+**Actual results** (offline mode, `python evals/run_evals.py`, report in [`evals/results/latest_offline.md`](evals/results/latest_offline.md)):
+
+| Metric | Result |
+|---|---|
+| Scenarios passed | 18/18 |
+| Risk classification | 5/5 |
+| Decision agreement with expected outcome | 10/10 |
+| Human-approval routing | 10/10 |
+| Validation enforcement (invalid input stopped before agents) | 4/4 |
+| Structured output validity (runs without injected faults) | 50/50 |
+| Injected faults detected | 3/3 |
+| Workflow completion | 17/17 |
+| Grounded coordinator explanations | 12/13 (the miss is S12, whose injected answer is deliberately ungrounded) |
+| Cycle latency p50 / max | 23 ms / 38 ms |
+
+**Read these numbers correctly.** In offline mode the agents answer with the same rules the expected outcomes are based on, so 100% agreement shows that **the orchestration, validation, governance and fault handling work**. It does not measure LLM quality. Running `python evals/run_evals.py --llm live` with an API key measures the real model on the same scenarios, including how often it disagrees with the rules. I did not have an API key while building this, so **no live-mode results are reported**.
+
+## 12. Installation and configuration
+
+Requires Python 3.12+ (developed and tested on 3.13, Windows 11).
+
+```bash
+git clone https://github.com/amanjaiswal-07/ChainOps.git
+```
+
+```bash
+cd ChainOps
+python -m venv .venv
+```
+
+```bash
+.venv\Scripts\activate
+```
+
+(macOS / Linux: `source .venv/bin/activate`)
+
+```bash
 pip install -r requirements.txt
-pip install streamlit
 ```
 
-> **Note:** The core requirements for the backend are in `requirements.txt`. Streamlit is installed separately for the UI.
-
-### 2. Configure environment variables
-
-Create a `.env` file in the project root (same folder as `requirements.txt`) and set your model / tracing keys, e.g.:
-
 ```bash
-OPENROUTER_API_KEY=your_key_here
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_PROJECT="supply-chain-control-tower"
+copy .env.example .env
 ```
 
-The exact keys you need may depend on which LLM provider you use via `langchain-openai` / `langgraph`.
+The database (`data/supply_chain.db`) is created and seeded automatically on first run. To reset the demo, delete that file.
 
-### 3. Initialize / seed the database (optional if already present)
+Key environment variables (all listed in `.env.example`):
 
-If you want to (re)initialize the demo data from code, you can run the backend entrypoint:
+| Variable | Default | Meaning |
+|---|---|---|
+| `LLM_MODE` | `auto` | `auto`: live if a key is set, else offline. `live`: require the LLM. `offline`: rule baselines only |
+| `OPENROUTER_API_KEY` | empty | key for OpenRouter |
+| `OPENROUTER_MODEL` | `openai/gpt-4o-mini` | model id |
+| `LLM_TIMEOUT_SECONDS`, `LLM_MAX_RETRIES` | 30, 2 | per-call timeout and bounded retries (safe: LLM calls have no side effects) |
+| `DATABASE_URL` | `data/supply_chain.db` in the repo | SQLAlchemy URL |
+| `SUPPLIER_RELIABILITY_THRESHOLD`, `LOGISTICS_MAX_ETA_DAYS` | 0.90, 7 | agent rules |
+| `DEMAND_SPIKE_THRESHOLD`, `SHIPMENT_DELAY_THRESHOLD_DAYS` | 1.25, 2 | event triggers |
+| `MAX_ORDER_QUANTITY`, `APPROVAL_QUANTITY_THRESHOLD` | 1000, 300 | governance |
+| `STALE_PO_DAYS`, `EVENT_MAX_AGE_HOURS` | 30, 24 | validation |
+
+## 13. Running it
+
+**API**
 
 ```bash
-venv\Scripts\activate
-python -m src.main
+uvicorn api:app --app-dir src --port 8000
 ```
 
-This will:
-
-- Initialize the SQLite database.
-- Seed example products, suppliers, orders, and shipments.
-- Run an async decision cycle for all products and print a text summary.
-
----
-
-## Running the Streamlit Control Tower UI
-
-From the project root:
+**Streamlit UI**
 
 ```bash
-venv\Scripts\activate
 streamlit run ui/app.py
 ```
 
-Then open the browser tab Streamlit launches (typically `http://localhost:8501`).
-
-In the UI you can:
-
-- Select a **Product** from the dropdown.
-- Click *** Run Supply Chain Decision Cycle”**.
-- Inspect:
-  - **Supply Chain State** – inventory, suppliers, POs, shipments.
-  - **Agent Reasoning** – collapsible sections for each agent’s output.
-  - **Final Decision** – decision type, quantity, supplier, expedite flag, and explanation.
-  - **Governance & Safety** – decision risk, whether human approval was required, and approval status.
-
-This makes it very clear *why* the system chose a certain action, not just *what* it decided.
-
----
-
-## Architecture & Flow
-
-1. **Data Ingestion**
-   - Reads the current snapshot from `supply_chain.db` (product, inventory, suppliers, POs, shipments).
-2. **Agent Layer**
-   - Each agent receives the shared state and writes its own reasoning / recommendations into `agent_outputs`.
-3. **Coordinator Agent**
-   - Consumes the individual agent outputs and produces a **final decision** and natural-language explanation.
-4. **Decision Gate**
-   - Evaluates risk and decides whether to:
-     - **Auto-execute**, or
-     - Route to **Human Approval**.
-5. **Human Approval Node**
-   - Represents a governance checkpoint where a human can approve or block execution.
-6. **Execution Node**
-   - On approval (or low-risk auto-execution), updates downstream state (e.g., placing orders) and returns execution status.
-
-All of this is assembled into a **LangGraph `StateGraph`** in `graph.py`, which the UI calls via `backend_interface.run_one_cycle`.
-
----
-
-## CLI / Backend-Only Usage
-
-If you prefer to run the decision system without the UI (e.g., for testing or demos in a terminal), you can use:
+**Automated triggering demo** (API must be running)
 
 ```bash
-venv\Scripts\activate
+python scripts/event_simulator.py webhook --api http://localhost:8000
+```
+
+```bash
+python scripts/event_simulator.py scan --interval 60
+```
+
+**CLI** (one recorded cycle per product, as in the original project)
+
+```bash
 python -m src.main
 ```
 
-This will:
+## 14. Tests
 
-- Build the LangGraph workflow.
-- Run the cycle for multiple products in parallel.
-- Print a structured summary to the console for each product.
+```bash
+pytest
+```
 
----
+142 tests, no API key or network needed: 85 unit tests (`tests/unit`: event schemas, business rules, overlays, output parsers, rule baselines, approval policy, state machine including a concurrency test) and 57 integration tests (`tests/integration`: full graph runs with mocked LLM answers, the event pipeline, every API endpoint through FastAPI's TestClient, and all 18 evaluation scenarios).
 
-##  Governance & Safety Notes
+Tests that call the real LLM are marked `live` and excluded by default:
 
-- The **decision gate** and **human approval node** model real-world governance:
-  - High-risk decisions can require a human approver.
-  - Metrics surface whether a decision needed approval and the final status.
-- The UI exposes:
-  - **Decision risk level**.
-  - Whether **human approval was required**.
-  - The **approval status** / human feedback.
+```bash
+pytest -m live
+```
 
+They skip themselves if `OPENROUTER_API_KEY` is not set, and they assert only structure and safety properties, never wording.
 
----
+## 15. What is simulated and what is real
 
-##  Technologies Used
+| Real | Simulated or assumed |
+|---|---|
+| LangGraph orchestration, all five agents, LLM calls in live mode | Purchase orders: a row in local SQLite, no ERP or supplier contact |
+| Validation, approval policy, state machine, transactions, idempotency | Events: produced by `scripts/event_simulator.py`, not real WMS / carrier systems |
+| FastAPI endpoints, audit records, structured logs | Demand spikes: modelled as a scaled reorder point (no demand history in the data) |
+| Offline mode: deterministic rule answers, labelled `offline` in every record | Scenario runs: dry runs that record a decision but never write a PO |
 
-- **Python 3.12+**
-- **LangGraph** for graph-based multi-agent orchestration.
-- **LangChain / langchain-openai** for LLM tooling and integrations.
-- **SQLite + SQLAlchemy** for the supply chain data model.
-- **Streamlit** for the interactive control tower UI.
-- **Pydantic** for typed models and validation.
+## 16. Known limitations
 
----
+* **Original business rules kept as they were** (details in [`docs/AUDIT.md`](docs/AUDIT.md)):
+  * every REORDER is HIGH risk, because the demand rule flags HIGH exactly when stock is below the reorder point. So no order is auto-approved with these rules; the auto-approval path is exercised in unit tests.
+  * open purchase orders are not counted as stock, so re-running after an approved order recommends ordering again.
+  * supplier risk is HIGH if *any* supplier is under 90%, even one that is not selected.
+* **No authentication.** The reviewer name is recorded but not verified.
+* **No live LLM evaluation results** yet (no API key was available during development).
+* **Synchronous processing.** Each request runs its cycle inline; a slow LLM means a slow request. Fine for one-product cycles, not for bulk loads.
+* **SQLite.** Good for a local prototype; concurrent writers serialize.
+* **Approval does not re-check freshness.** A decision approved days later executes on the data it was made with.
+* `demo/demo.py` is the original static snapshot page with pre-captured data. It is kept for reference; the main UI runs the real workflow without a key.
 
-##  Next Steps / Ideas
+## 17. Future improvements
 
-- Plug into a real transactional system instead of the demo SQLite database.
-- Add more products, suppliers, and realistic lead-time / risk modeling.
-- Integrate external signals (e.g., logistics disruption feeds, pricing APIs).
-- Add a scenario selector in the UI (e.g., “port strike”, “supplier outage”, “demand spike”).
+* Inventory position (on hand + on order) in the inventory rule, so open orders are counted.
+* Per-supplier risk instead of global supplier risk, so a reliable chosen supplier is not penalised for an unreliable unused one.
+* Re-validate the snapshot at approval time and expire stale pending decisions.
+* Reviewer authentication and role-based approval limits (for example, larger orders need a manager).
+* Run the live evaluation regularly and track LLM vs rule disagreement rates across model versions.
+* Move cycles to a background worker if event volume grows beyond what synchronous requests handle.
 
+## 18. Project structure
 
+```
+src/
+  api.py                 FastAPI app
+  workflow.py            runs cycles and the event pipeline, records results
+  governance.py          decision records, approval state machine, execution
+  graph.py               LangGraph graph
+  state.py               shared graph state
+  events.py              event schemas, event rules, trigger thresholds
+  overlay.py             what-if snapshot overlays (events and scenarios)
+  validation.py          business-rule validation
+  config.py              all thresholds and settings
+  llm_config.py          LLM client, offline mode, test hook
+  logging_config.py      JSON logs
+  scenarios.py           simulator presets
+  models.py, db_service.py, db_init.py   database
+  backend_interface.py   UI entry point (kept from the original)
+  main.py                CLI (kept from the original)
+  agents/                demand, inventory, risk, logistics, coordinator,
+                         rules.py (deterministic baselines), outputs.py (AI-output validation)
+  nodes/                 data_ingestion, data_validation, decision_gate, human_approval
+ui/app.py                Streamlit UI
+scripts/event_simulator.py   webhook sender and scheduled scanner
+evals/                   scenarios.json, run_evals.py, results/
+tests/                   unit/, integration/, live/
+docs/                    AUDIT.md (baseline audit), screenshots/
+demo/demo.py             original static demo page
+```
