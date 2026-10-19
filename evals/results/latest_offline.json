@@ -1,0 +1,1868 @@
+{
+  "mode": "offline",
+  "generated_at": "2026-10-19 22:15 UTC",
+  "metrics": {
+    "scenarios_passed": {
+      "correct": 18,
+      "total": 18
+    },
+    "risk_classification": {
+      "correct": 5,
+      "total": 5
+    },
+    "decision_agreement": {
+      "correct": 10,
+      "total": 10
+    },
+    "approval_routing": {
+      "correct": 10,
+      "total": 10
+    },
+    "validation_enforcement": {
+      "correct": 4,
+      "total": 4
+    },
+    "structured_output_validity_clean_runs": {
+      "correct": 50,
+      "total": 50
+    },
+    "llm_rule_disagreements_clean_runs": 0,
+    "injected_faults_detected": {
+      "correct": 3,
+      "total": 3
+    },
+    "workflow_completion": {
+      "correct": 17,
+      "total": 17
+    },
+    "errors": 0,
+    "cycle_latency_ms": {
+      "p50": 23,
+      "max": 38
+    },
+    "grounded_explanations": {
+      "correct": 12,
+      "total": 13
+    },
+    "agent_outputs_checked": 65
+  },
+  "results": [
+    {
+      "id": "S01",
+      "name": "Normal inventory, stable demand",
+      "category": "baseline",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "NO_ACTION_REQUIRED vs NO_ACTION_REQUIRED"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "HOLD"
+        },
+        {
+          "check": "risk_level",
+          "passed": true,
+          "detail": "LOW"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "False"
+        },
+        {
+          "check": "agents_ran",
+          "passed": true,
+          "detail": "['demand_agent', 'inventory_agent', 'risk_agent', 'logistics_agent', 'coordinator']"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "0"
+        }
+      ],
+      "observed": {
+        "status": "NO_ACTION_REQUIRED",
+        "risk_level": "LOW",
+        "decision": "HOLD",
+        "quantity": 0,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "NO_ACTION_REQUIRED",
+        "purchase_orders_created": 0,
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "LOW"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "LOW"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": false
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "HOLD",
+              "supplier_id": null,
+              "quantity": 0,
+              "expedite": false
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 38
+      },
+      "latency_ms": 53.9,
+      "expected": {
+        "status": "NO_ACTION_REQUIRED",
+        "decision_type": "HOLD",
+        "risk_level": "LOW",
+        "approval_required": false,
+        "agents_ran": true,
+        "purchase_orders_created": 0
+      }
+    },
+    {
+      "id": "S02",
+      "name": "Demand spike with insufficient inventory",
+      "category": "event_trigger",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "quantity",
+          "passed": true,
+          "detail": "250"
+        },
+        {
+          "check": "risk_level",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "agents_ran",
+          "passed": true,
+          "detail": "['demand_agent', 'inventory_agent', 'risk_agent', 'logistics_agent', 'coordinator']"
+        },
+        {
+          "check": "field demand.demand_risk",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "0"
+        }
+      ],
+      "observed": {
+        "duplicate_flags": [
+          false
+        ],
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 250,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "purchase_orders_created": 0,
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 250,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 20
+      },
+      "latency_ms": 56.8,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "quantity": 250,
+        "risk_level": "HIGH",
+        "approval_required": true,
+        "agents_ran": true,
+        "purchase_orders_created": 0,
+        "agent_fields": {
+          "demand.demand_risk": "HIGH"
+        }
+      }
+    },
+    {
+      "id": "S03",
+      "name": "Supplier delay affecting a critical, low-stock product",
+      "category": "event_trigger",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "risk_level",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "agents_ran",
+          "passed": true,
+          "detail": "['demand_agent', 'inventory_agent', 'risk_agent', 'logistics_agent', 'coordinator']"
+        },
+        {
+          "check": "field risk.logistics_risk",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "field logistics.expedite",
+          "passed": true,
+          "detail": "True"
+        }
+      ],
+      "observed": {
+        "duplicate_flags": [
+          false
+        ],
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 140,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 140,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 22
+      },
+      "latency_ms": 62.5,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "risk_level": "HIGH",
+        "approval_required": true,
+        "agents_ran": true,
+        "agent_fields": {
+          "risk.logistics_risk": "HIGH",
+          "logistics.expedite": true
+        }
+      }
+    },
+    {
+      "id": "S04",
+      "name": "Invalid inventory data (negative stock)",
+      "category": "data_validation",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "VALIDATION_FAILED vs VALIDATION_FAILED"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "None"
+        },
+        {
+          "check": "validation_status",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "no agent ran on invalid/untriggered input",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "check": "validation error codes",
+          "passed": true,
+          "detail": "['NEGATIVE_INVENTORY']"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "0"
+        }
+      ],
+      "observed": {
+        "status": "VALIDATION_FAILED",
+        "risk_level": null,
+        "decision": null,
+        "quantity": null,
+        "agents_ran": [],
+        "final_status": "VALIDATION_FAILED",
+        "purchase_orders_created": 0,
+        "metas": {
+          "demand": null,
+          "inventory": null,
+          "risk": null,
+          "logistics": null,
+          "coordinator": null
+        },
+        "cycle_latency_ms": 18
+      },
+      "latency_ms": 44.3,
+      "expected": {
+        "status": "VALIDATION_FAILED",
+        "validation_status": "FAILED",
+        "agents_ran": false,
+        "decision_type": null,
+        "error_codes": [
+          "NEGATIVE_INVENTORY"
+        ],
+        "purchase_orders_created": 0
+      }
+    },
+    {
+      "id": "S05",
+      "name": "Malformed event payload (schema)",
+      "category": "data_validation",
+      "passed": true,
+      "checks": [
+        {
+          "check": "schema validation rejected payload",
+          "passed": true,
+          "detail": "Input should be greater than or equal to 0"
+        }
+      ],
+      "observed": {
+        "schema_error": "Input should be greater than or equal to 0"
+      },
+      "latency_ms": 2.6,
+      "expected": {
+        "schema_error": true
+      }
+    },
+    {
+      "id": "S06",
+      "name": "High-risk replenishment above the order ceiling",
+      "category": "governance",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "quantity",
+          "passed": true,
+          "detail": "1000"
+        },
+        {
+          "check": "risk_level",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "reason mentions 'capped'",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "reason mentions 'exceeds the approval threshold'",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 1000,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 1000,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 25
+      },
+      "latency_ms": 53.8,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "quantity": 1000,
+        "risk_level": "HIGH",
+        "approval_required": true,
+        "reason_contains": [
+          "capped",
+          "exceeds the approval threshold"
+        ]
+      }
+    },
+    {
+      "id": "S07",
+      "name": "Conflicting signals (risk HIGH, stock sufficient)",
+      "category": "conflict_resolution",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "NO_ACTION_REQUIRED vs NO_ACTION_REQUIRED"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "HOLD"
+        },
+        {
+          "check": "risk_level",
+          "passed": true,
+          "detail": "LOW"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "False"
+        },
+        {
+          "check": "field demand.demand_risk",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "field risk.logistics_risk",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "field inventory.action",
+          "passed": true,
+          "detail": "HOLD"
+        }
+      ],
+      "observed": {
+        "status": "NO_ACTION_REQUIRED",
+        "risk_level": "LOW",
+        "decision": "HOLD",
+        "quantity": 0,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "NO_ACTION_REQUIRED",
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "HOLD",
+              "supplier_id": null,
+              "quantity": 0,
+              "expedite": false
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 26
+      },
+      "latency_ms": 55.5,
+      "expected": {
+        "status": "NO_ACTION_REQUIRED",
+        "decision_type": "HOLD",
+        "risk_level": "LOW",
+        "approval_required": false,
+        "agent_fields": {
+          "demand.demand_risk": "HIGH",
+          "risk.logistics_risk": "HIGH",
+          "inventory.action": "HOLD"
+        }
+      }
+    },
+    {
+      "id": "S08",
+      "name": "High-risk recommendation approved by a human",
+      "category": "governance",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "final status",
+          "passed": true,
+          "detail": "EXECUTED"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "1"
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 150,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "after_approve": "EXECUTED",
+        "final_status": "EXECUTED",
+        "purchase_orders_created": 1,
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 150,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 23
+      },
+      "latency_ms": 45.9,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "approval_required": true,
+        "final_status": "EXECUTED",
+        "purchase_orders_created": 1
+      }
+    },
+    {
+      "id": "S09",
+      "name": "High-risk recommendation rejected by a human",
+      "category": "governance",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "rejected decision cannot execute",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "final status",
+          "passed": true,
+          "detail": "REJECTED"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "0"
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 140,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "execute_after_reject": "blocked",
+        "final_status": "REJECTED",
+        "purchase_orders_created": 0,
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 140,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 23
+      },
+      "latency_ms": 44.8,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "approval_required": true,
+        "final_status": "REJECTED",
+        "purchase_orders_created": 0
+      }
+    },
+    {
+      "id": "S10",
+      "name": "Malformed coordinator output",
+      "category": "ai_output_validation",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "quantity",
+          "passed": true,
+          "detail": "150"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "reason mentions 'coordinator agent output failed validation'",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "coordinator invalid output detected",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 150,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "metas": {
+          "demand": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "override",
+            "output_valid": false,
+            "fallback_used": true,
+            "issues": [
+              "malformed LLM output: missing field DECISION_TYPE"
+            ],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 150,
+              "expedite": true
+            },
+            "raw_excerpt": "I think we should probably order some widgets soon."
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 22
+      },
+      "latency_ms": 43.6,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "quantity": 150,
+        "approval_required": true,
+        "invalid_outputs": [
+          "coordinator"
+        ],
+        "reason_contains": [
+          "coordinator agent output failed validation"
+        ]
+      }
+    },
+    {
+      "id": "S11",
+      "name": "LLM unavailable for every agent (recovery via rule fallback)",
+      "category": "failure_recovery",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "demand invalid output detected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "inventory invalid output detected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "risk invalid output detected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "logistics invalid output detected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "coordinator invalid output detected",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 150,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "metas": {
+          "demand": {
+            "source": "override",
+            "output_valid": false,
+            "fallback_used": true,
+            "issues": [
+              "LLM call failed: TimeoutError: simulated LLM failure"
+            ],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "override",
+            "output_valid": false,
+            "fallback_used": true,
+            "issues": [
+              "LLM explanation unavailable: TimeoutError: simulated LLM failure"
+            ],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "override",
+            "output_valid": false,
+            "fallback_used": true,
+            "issues": [
+              "LLM call failed: TimeoutError: simulated LLM failure"
+            ],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "override",
+            "output_valid": false,
+            "fallback_used": true,
+            "issues": [
+              "LLM call failed: TimeoutError: simulated LLM failure"
+            ],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "override",
+            "output_valid": false,
+            "fallback_used": true,
+            "issues": [
+              "LLM call failed: TimeoutError: simulated LLM failure"
+            ],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 150,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 26
+      },
+      "latency_ms": 50.5,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "approval_required": true,
+        "invalid_outputs": [
+          "demand",
+          "inventory",
+          "risk",
+          "logistics",
+          "coordinator"
+        ]
+      }
+    },
+    {
+      "id": "S12",
+      "name": "Unsafe LLM answers cannot bypass approval",
+      "category": "ai_output_validation",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "decision_type",
+          "passed": true,
+          "detail": "REORDER"
+        },
+        {
+          "check": "quantity",
+          "passed": true,
+          "detail": "150"
+        },
+        {
+          "check": "approval_routing",
+          "passed": true,
+          "detail": "True"
+        },
+        {
+          "check": "field demand.demand_risk",
+          "passed": true,
+          "detail": "HIGH"
+        },
+        {
+          "check": "demand.demand_risk disagreement flagged",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "coordinator.decision_type disagreement flagged",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 150,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "metas": {
+          "demand": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {
+              "demand_risk": {
+                "llm": "LOW",
+                "rule": "HIGH"
+              }
+            },
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "override",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {
+              "decision_type": {
+                "llm": "HOLD",
+                "rule": "REORDER"
+              },
+              "quantity": {
+                "llm": 0,
+                "rule": 150
+              },
+              "expedite": {
+                "llm": false,
+                "rule": true
+              }
+            },
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 150,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": false,
+        "cycle_latency_ms": 34
+      },
+      "latency_ms": 60.3,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "decision_type": "REORDER",
+        "quantity": 150,
+        "approval_required": true,
+        "agent_fields": {
+          "demand.demand_risk": "HIGH"
+        },
+        "disagreements": [
+          "demand.demand_risk",
+          "coordinator.decision_type"
+        ]
+      }
+    },
+    {
+      "id": "S13",
+      "name": "Duplicate event delivery (webhook retry)",
+      "category": "idempotency",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "duplicate detected",
+          "passed": true,
+          "detail": "[False, True]"
+        },
+        {
+          "check": "decision records",
+          "passed": true,
+          "detail": "1"
+        }
+      ],
+      "observed": {
+        "duplicate_flags": [
+          false,
+          true
+        ],
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 160,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "final_status": "PENDING_APPROVAL",
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "LOW"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 160,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 19
+      },
+      "latency_ms": 62.3,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "duplicate_detected": true,
+        "decision_records": 1
+      }
+    },
+    {
+      "id": "S14",
+      "name": "Execution failure, then successful retry",
+      "category": "failure_recovery",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "intermediate status",
+          "passed": true,
+          "detail": "EXECUTION_FAILED"
+        },
+        {
+          "check": "no PO written by failed execution",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "final status",
+          "passed": true,
+          "detail": "EXECUTED"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "1"
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 150,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "after_approve": "EXECUTION_FAILED",
+        "final_status": "EXECUTED",
+        "purchase_orders_created": 1,
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 150,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 24
+      },
+      "latency_ms": 50.7,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "intermediate_status": "EXECUTION_FAILED",
+        "final_status": "EXECUTED",
+        "purchase_orders_created": 1
+      }
+    },
+    {
+      "id": "S15",
+      "name": "Stale event",
+      "category": "data_validation",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "VALIDATION_FAILED vs VALIDATION_FAILED"
+        },
+        {
+          "check": "no agent ran on invalid/untriggered input",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "check": "validation error codes",
+          "passed": true,
+          "detail": "['STALE_EVENT']"
+        }
+      ],
+      "observed": {
+        "duplicate_flags": [
+          false
+        ],
+        "status": "VALIDATION_FAILED",
+        "risk_level": null,
+        "decision": null,
+        "quantity": null,
+        "agents_ran": [],
+        "final_status": "VALIDATION_FAILED",
+        "metas": {
+          "demand": null,
+          "inventory": null,
+          "risk": null,
+          "logistics": null,
+          "coordinator": null
+        },
+        "cycle_latency_ms": null
+      },
+      "latency_ms": 35.2,
+      "expected": {
+        "status": "VALIDATION_FAILED",
+        "agents_ran": false,
+        "error_codes": [
+          "STALE_EVENT"
+        ]
+      }
+    },
+    {
+      "id": "S16",
+      "name": "Event below trigger threshold",
+      "category": "event_trigger",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "NOT_TRIGGERED vs NOT_TRIGGERED"
+        },
+        {
+          "check": "no agent ran on invalid/untriggered input",
+          "passed": true,
+          "detail": "[]"
+        }
+      ],
+      "observed": {
+        "duplicate_flags": [
+          false
+        ],
+        "status": "NOT_TRIGGERED",
+        "risk_level": null,
+        "decision": null,
+        "quantity": null,
+        "agents_ran": [],
+        "final_status": "NOT_TRIGGERED",
+        "metas": {
+          "demand": null,
+          "inventory": null,
+          "risk": null,
+          "logistics": null,
+          "coordinator": null
+        },
+        "cycle_latency_ms": null
+      },
+      "latency_ms": 38.3,
+      "expected": {
+        "status": "NOT_TRIGGERED",
+        "agents_ran": false
+      }
+    },
+    {
+      "id": "S17",
+      "name": "Inconsistent reference (shipment of another product)",
+      "category": "data_validation",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "VALIDATION_FAILED vs VALIDATION_FAILED"
+        },
+        {
+          "check": "no agent ran on invalid/untriggered input",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "check": "validation error codes",
+          "passed": true,
+          "detail": "['INCONSISTENT_REFERENCE']"
+        }
+      ],
+      "observed": {
+        "duplicate_flags": [
+          false
+        ],
+        "status": "VALIDATION_FAILED",
+        "risk_level": null,
+        "decision": null,
+        "quantity": null,
+        "agents_ran": [],
+        "final_status": "VALIDATION_FAILED",
+        "metas": {
+          "demand": null,
+          "inventory": null,
+          "risk": null,
+          "logistics": null,
+          "coordinator": null
+        },
+        "cycle_latency_ms": 12
+      },
+      "latency_ms": 50.3,
+      "expected": {
+        "status": "VALIDATION_FAILED",
+        "agents_ran": false,
+        "error_codes": [
+          "INCONSISTENT_REFERENCE"
+        ]
+      }
+    },
+    {
+      "id": "S18",
+      "name": "Double approval does not create a second order",
+      "category": "idempotency",
+      "passed": true,
+      "checks": [
+        {
+          "check": "status",
+          "passed": true,
+          "detail": "PENDING_APPROVAL vs PENDING_APPROVAL"
+        },
+        {
+          "check": "second approval rejected",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "check": "final status",
+          "passed": true,
+          "detail": "EXECUTED"
+        },
+        {
+          "check": "purchase orders created",
+          "passed": true,
+          "detail": "1"
+        }
+      ],
+      "observed": {
+        "status": "PENDING_APPROVAL",
+        "risk_level": "HIGH",
+        "decision": "REORDER",
+        "quantity": 150,
+        "agents_ran": [
+          "demand_agent",
+          "inventory_agent",
+          "risk_agent",
+          "logistics_agent",
+          "coordinator"
+        ],
+        "after_approve": "EXECUTED",
+        "second_action": "rejected",
+        "final_status": "EXECUTED",
+        "purchase_orders_created": 1,
+        "metas": {
+          "demand": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "demand_risk": "HIGH"
+            }
+          },
+          "inventory": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "deterministic_decision": true
+          },
+          "risk": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "supplier_risk": "HIGH",
+              "logistics_risk": "HIGH"
+            }
+          },
+          "logistics": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "expedite": true
+            }
+          },
+          "coordinator": {
+            "source": "offline",
+            "output_valid": true,
+            "fallback_used": false,
+            "issues": [],
+            "disagreements": {},
+            "rule_baseline": {
+              "decision_type": "REORDER",
+              "supplier_id": 1,
+              "quantity": 150,
+              "expedite": true
+            }
+          }
+        },
+        "grounded": true,
+        "cycle_latency_ms": 29
+      },
+      "latency_ms": 60.8,
+      "expected": {
+        "status": "PENDING_APPROVAL",
+        "final_status": "EXECUTED",
+        "second_action_rejected": true,
+        "purchase_orders_created": 1
+      }
+    }
+  ]
+}

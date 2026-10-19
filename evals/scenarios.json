@@ -1,0 +1,163 @@
+{
+  "description": "ChainOps evaluation scenarios. Each runs on a fresh copy of the seed database. 'llm' entries replace one agent's LLM answer (raw text, or {\"raise\": ...} to simulate an outage); agents not listed answer normally (rule baseline offline, real LLM in live mode). Timestamps: 'now' or 'now-<hours>h'.",
+  "scenarios": [
+    {
+      "id": "S01",
+      "name": "Normal inventory, stable demand",
+      "category": "baseline",
+      "input": {"type": "cycle", "product_id": 1},
+      "expected": {"status": "NO_ACTION_REQUIRED", "decision_type": "HOLD", "risk_level": "LOW",
+                   "approval_required": false, "agents_ran": true, "purchase_orders_created": 0}
+    },
+    {
+      "id": "S02",
+      "name": "Demand spike with insufficient inventory",
+      "category": "event_trigger",
+      "input": {"type": "event", "event": {"event_id": "eval-S02", "event_type": "DEMAND_SPIKE", "product_id": 2,
+                "demand_multiplier": 1.5, "occurred_at": "now"}},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "quantity": 250, "risk_level": "HIGH",
+                   "approval_required": true, "agents_ran": true, "purchase_orders_created": 0,
+                   "agent_fields": {"demand.demand_risk": "HIGH"}}
+    },
+    {
+      "id": "S03",
+      "name": "Supplier delay affecting a critical, low-stock product",
+      "category": "event_trigger",
+      "input": {"type": "event", "event": {"event_id": "eval-S03", "event_type": "SHIPMENT_DELAYED", "product_id": 3,
+                "shipment_id": 2, "delay_days": 5, "occurred_at": "now"}},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "risk_level": "HIGH",
+                   "approval_required": true, "agents_ran": true,
+                   "agent_fields": {"risk.logistics_risk": "HIGH", "logistics.expedite": true}}
+    },
+    {
+      "id": "S04",
+      "name": "Invalid inventory data (negative stock)",
+      "category": "data_validation",
+      "input": {"type": "cycle", "product_id": 2, "overlay": {"inventory_quantity": -15}},
+      "expected": {"status": "VALIDATION_FAILED", "validation_status": "FAILED", "agents_ran": false,
+                   "decision_type": null, "error_codes": ["NEGATIVE_INVENTORY"], "purchase_orders_created": 0}
+    },
+    {
+      "id": "S05",
+      "name": "Malformed event payload (schema)",
+      "category": "data_validation",
+      "input": {"type": "event", "event": {"event_id": "eval-S05", "event_type": "INVENTORY_LEVEL_CHANGED", "product_id": 1,
+                "observed_quantity": -5, "occurred_at": "now"}},
+      "expected": {"schema_error": true}
+    },
+    {
+      "id": "S06",
+      "name": "High-risk replenishment above the order ceiling",
+      "category": "governance",
+      "input": {"type": "cycle", "product_id": 3, "overlay": {"demand_multiplier": 8.0}},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "quantity": 1000, "risk_level": "HIGH",
+                   "approval_required": true, "reason_contains": ["capped", "exceeds the approval threshold"]}
+    },
+    {
+      "id": "S07",
+      "name": "Conflicting signals (risk HIGH, stock sufficient)",
+      "category": "conflict_resolution",
+      "input": {"type": "cycle", "product_id": 1, "overlay": {"inventory_quantity": 120, "clear_purchase_orders": true}},
+      "expected": {"status": "NO_ACTION_REQUIRED", "decision_type": "HOLD", "risk_level": "LOW", "approval_required": false,
+                   "agent_fields": {"demand.demand_risk": "HIGH", "risk.logistics_risk": "HIGH", "inventory.action": "HOLD"}}
+    },
+    {
+      "id": "S08",
+      "name": "High-risk recommendation approved by a human",
+      "category": "governance",
+      "input": {"type": "cycle", "product_id": 2},
+      "then": {"action": "approve"},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "approval_required": true,
+                   "final_status": "EXECUTED", "purchase_orders_created": 1}
+    },
+    {
+      "id": "S09",
+      "name": "High-risk recommendation rejected by a human",
+      "category": "governance",
+      "input": {"type": "cycle", "product_id": 3},
+      "then": {"action": "reject"},
+      "expected": {"status": "PENDING_APPROVAL", "approval_required": true,
+                   "final_status": "REJECTED", "purchase_orders_created": 0}
+    },
+    {
+      "id": "S10",
+      "name": "Malformed coordinator output",
+      "category": "ai_output_validation",
+      "input": {"type": "cycle", "product_id": 2},
+      "llm": {"coordinator": "I think we should probably order some widgets soon."},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "quantity": 150, "approval_required": true,
+                   "invalid_outputs": ["coordinator"], "reason_contains": ["coordinator agent output failed validation"]}
+    },
+    {
+      "id": "S11",
+      "name": "LLM unavailable for every agent (recovery via rule fallback)",
+      "category": "failure_recovery",
+      "input": {"type": "cycle", "product_id": 2},
+      "llm": {"demand": {"raise": "TimeoutError"}, "inventory": {"raise": "TimeoutError"}, "risk": {"raise": "TimeoutError"},
+              "logistics": {"raise": "TimeoutError"}, "coordinator": {"raise": "TimeoutError"}},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "approval_required": true,
+                   "invalid_outputs": ["demand", "inventory", "risk", "logistics", "coordinator"]}
+    },
+    {
+      "id": "S12",
+      "name": "Unsafe LLM answers cannot bypass approval",
+      "category": "ai_output_validation",
+      "input": {"type": "cycle", "product_id": 2},
+      "llm": {"demand": "DEMAND_RISK: LOW\nREASONING: Everything looks fine.",
+              "coordinator": "DECISION_TYPE: HOLD\nSUPPLIER_ID: N/A\nQUANTITY: 0\nEXPEDITE: false\nREASONING: No action needed."},
+      "expected": {"status": "PENDING_APPROVAL", "decision_type": "REORDER", "quantity": 150, "approval_required": true,
+                   "agent_fields": {"demand.demand_risk": "HIGH"},
+                   "disagreements": ["demand.demand_risk", "coordinator.decision_type"]}
+    },
+    {
+      "id": "S13",
+      "name": "Duplicate event delivery (webhook retry)",
+      "category": "idempotency",
+      "input": {"type": "event", "repeat": 2, "event": {"event_id": "eval-S13", "event_type": "INVENTORY_LEVEL_CHANGED",
+                "product_id": 1, "observed_quantity": 40, "occurred_at": "now"}},
+      "expected": {"status": "PENDING_APPROVAL", "duplicate_detected": true, "decision_records": 1}
+    },
+    {
+      "id": "S14",
+      "name": "Execution failure, then successful retry",
+      "category": "failure_recovery",
+      "input": {"type": "cycle", "product_id": 2},
+      "then": {"action": "approve", "fail_execution_once": true, "retry": true},
+      "expected": {"status": "PENDING_APPROVAL", "intermediate_status": "EXECUTION_FAILED", "final_status": "EXECUTED",
+                   "purchase_orders_created": 1}
+    },
+    {
+      "id": "S15",
+      "name": "Stale event",
+      "category": "data_validation",
+      "input": {"type": "event", "event": {"event_id": "eval-S15", "event_type": "INVENTORY_LEVEL_CHANGED", "product_id": 1,
+                "observed_quantity": 40, "occurred_at": "now-48h"}},
+      "expected": {"status": "VALIDATION_FAILED", "agents_ran": false, "error_codes": ["STALE_EVENT"]}
+    },
+    {
+      "id": "S16",
+      "name": "Event below trigger threshold",
+      "category": "event_trigger",
+      "input": {"type": "event", "event": {"event_id": "eval-S16", "event_type": "DEMAND_SPIKE", "product_id": 1,
+                "demand_multiplier": 1.1, "occurred_at": "now"}},
+      "expected": {"status": "NOT_TRIGGERED", "agents_ran": false}
+    },
+    {
+      "id": "S17",
+      "name": "Inconsistent reference (shipment of another product)",
+      "category": "data_validation",
+      "input": {"type": "event", "event": {"event_id": "eval-S17", "event_type": "SHIPMENT_DELAYED", "product_id": 1,
+                "shipment_id": 2, "delay_days": 4, "occurred_at": "now"}},
+      "expected": {"status": "VALIDATION_FAILED", "agents_ran": false, "error_codes": ["INCONSISTENT_REFERENCE"]}
+    },
+    {
+      "id": "S18",
+      "name": "Double approval does not create a second order",
+      "category": "idempotency",
+      "input": {"type": "cycle", "product_id": 2},
+      "then": {"action": "approve_twice"},
+      "expected": {"status": "PENDING_APPROVAL", "final_status": "EXECUTED", "second_action_rejected": true,
+                   "purchase_orders_created": 1}
+    }
+  ]
+}
