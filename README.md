@@ -34,6 +34,7 @@ It is a portfolio prototype. Orders are **simulated**: an approved order becomes
 16. [Known limitations](#16-known-limitations)
 17. [Future improvements](#17-future-improvements)
 18. [Project structure](#18-project-structure)
+19. [Author](#author)
 
 ---
 
@@ -172,6 +173,30 @@ Events never modify the database. An event is turned into an **overlay**, applie
 
 Processing is **synchronous**: the cycle runs inside the request, and the response carries its final status. There is no background queue.
 
+Actual output of `python scripts/event_simulator.py webhook` against a fresh database (offline mode):
+
+```text
+API health: {"status": "ok", "llm_mode": "offline", "products": 3}
+
+[201] Stock for Widget A drops to 40: dec_a58019f8230f status=PENDING_APPROVAL risk=HIGH action=REORDER 160
+      trigger: observed stock 40 is below reorder point 100
+[200] Same webhook delivered again: dec_a58019f8230f status=PENDING_APPROVAL risk=HIGH action=REORDER 160 (duplicate)
+[201] Stock report above reorder point: dec_d8c72828e0ce status=NOT_TRIGGERED risk=None action=None
+      trigger: observed stock 180 is at or above reorder point 100
+[201] Carrier: Widget C shipment 5 days late: dec_a51c4ada6527 status=PENDING_APPROVAL risk=HIGH action=REORDER 140
+      trigger: delay of 5 days meets the 2-day threshold
+[201] Sales: demand +10% (under threshold): dec_7fdbe254128b status=NOT_TRIGGERED risk=None action=None
+      trigger: demand x1.1 is under the x1.25 threshold
+[201] Sales: demand x3 for Widget A: dec_740361a2a3e3 status=PENDING_APPROVAL risk=HIGH action=REORDER 350
+      trigger: demand x3.0 meets the x1.25 threshold
+[422] Negative stock in payload: rejected by schema: body.INVENTORY_LEVEL_CHANGED.observed_quantity: Input should be greater than or equal to 0
+[201] Event from two days ago: dec_50e33d824937 status=VALIDATION_FAILED risk=None action=None
+[201] Shipment that belongs to another product: dec_ea3062192efc status=VALIDATION_FAILED risk=None action=None
+      trigger: delay of 4 days meets the 2-day threshold
+```
+
+The replayed webhook returns the same `decision_id` with HTTP 200, so a retrying sender never creates a second decision. The scheduled scanner behaves the same way: a second `scan --once` within the same hour reports every product as `(duplicate, already handled)`.
+
 ## 6. Data validation
 
 Three separate layers, because they catch different problems:
@@ -241,6 +266,10 @@ Guarantees, each covered by a test:
 * A repeated approve, an approve after reject, or approving a HOLD returns **409** with the current status.
 * The PO insert and the `EXECUTED` status are one transaction. If it fails, nothing is written, the record becomes `EXECUTION_FAILED` with the error, and `retry-execution` is safe.
 * Reviewer name, note and timestamps are stored on the record.
+
+After approval, the record shows the full chain: agents that ran with their timings, each agent's output, why approval was required, who approved it and when, and the simulated execution result.
+
+![A high-risk decision approved by a reviewer and executed](docs/screenshots/decision-executed.png)
 
 ## 8. Decision and audit records
 
@@ -377,6 +406,42 @@ Coverage:
 
 Fault-injection scenarios replace one agent's LLM answer with malformed text, an unsafe answer, or a raised `TimeoutError`.
 
+```mermaid
+flowchart LR
+    DS[evals/scenarios.json<br/>input, optional LLM faults,<br/>follow-up action, expected outcome] --> RUN[run_evals.py]
+    RUN --> DB[(fresh seeded<br/>SQLite per scenario)]
+    RUN --> MOCK[LLM override<br/>faulty answer for listed agents,<br/>normal answer for the rest]
+    RUN --> WF[real workflow<br/>graph + validation + governance]
+    WF --> ACT[follow-up: approve / reject /<br/>approve twice / fail then retry]
+    ACT --> CHK[deterministic checks<br/>status, decision, quantity, risk,<br/>routing, flags, PO count]
+    CHK --> REP[evals/results/latest_mode.md + .json]
+```
+
+The same scenarios also run as pytest cases (`tests/integration/test_eval_scenarios.py`), so a regression in any of them fails the test suite. Terminal output of the offline run:
+
+```text
+PASS  S01  Normal inventory, stable demand
+PASS  S02  Demand spike with insufficient inventory
+PASS  S03  Supplier delay affecting a critical, low-stock product
+PASS  S04  Invalid inventory data (negative stock)
+PASS  S05  Malformed event payload (schema)
+PASS  S06  High-risk replenishment above the order ceiling
+PASS  S07  Conflicting signals (risk HIGH, stock sufficient)
+PASS  S08  High-risk recommendation approved by a human
+PASS  S09  High-risk recommendation rejected by a human
+PASS  S10  Malformed coordinator output
+PASS  S11  LLM unavailable for every agent (recovery via rule fallback)
+PASS  S12  Unsafe LLM answers cannot bypass approval
+PASS  S13  Duplicate event delivery (webhook retry)
+PASS  S14  Execution failure, then successful retry
+PASS  S15  Stale event
+PASS  S16  Event below trigger threshold
+PASS  S17  Inconsistent reference (shipment of another product)
+PASS  S18  Double approval does not create a second order
+
+18/18 scenarios passed. Report: evals\results\latest_offline.md
+```
+
 LLM free text is never compared with exact strings. One explicitly defined text criterion is reported: the coordinator's explanation must mention the actual stock level ("grounded"). There is no LLM-as-judge; it would add non-determinism and is not needed for the properties tested.
 
 **Actual results** (offline mode, `python evals/run_evals.py`, report in [`evals/results/latest_offline.md`](evals/results/latest_offline.md)):
@@ -469,6 +534,16 @@ python scripts/event_simulator.py scan --interval 60
 python -m src.main
 ```
 
+### Five-minute demo walkthrough
+
+1. Start the API and the UI (two terminals, commands above).
+2. Run the webhook simulator. Nine events arrive: some start cycles, one is a replay, two are below threshold, three are rejected by the two validation layers.
+3. Open the UI, tab **Approvals and audit**. The decisions created by those events are listed, with the pending ones at the top.
+4. Inspect a pending decision: input, validation, agent sequence with timings, each agent's reasoning, and the policy rules that made it HIGH risk.
+5. Enter a reviewer name and approve. The status becomes `EXECUTED` and the simulated purchase order id appears. Try approving again through the API: `409`.
+6. Tab **Scenario simulator**: run *Data-quality failure* (the cycle stops before any agent) and *Sudden demand increase* (order above the approval threshold), and compare baseline vs scenario.
+7. Run `pytest` and `python evals/run_evals.py` to show the same behaviour is checked automatically.
+
 ## 14. Tests
 
 ```bash
@@ -545,3 +620,10 @@ tests/                   unit/, integration/, live/
 docs/                    AUDIT.md (baseline audit), screenshots/
 demo/demo.py             original static demo page
 ```
+
+## Author
+
+**Aman Jaiswal**
+
+* GitHub: [github.com/amanjaiswal-07](https://github.com/amanjaiswal-07)
+* LeetCode: [leetcode.com/u/amanjaiswal7](https://leetcode.com/u/amanjaiswal7/)
