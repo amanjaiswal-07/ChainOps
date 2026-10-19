@@ -1,14 +1,22 @@
-from sqlalchemy import create_engine
+"""
+Create the schema and seed the demo data.
+
+The seed defines three products with deliberately different risk profiles
+so that one run of the workflow shows a HOLD, a HIGH-risk reorder with no
+open PO, and a HIGH-risk reorder with a late shipment.
+"""
+
+from datetime import timedelta
+
 from sqlalchemy.orm import sessionmaker
-from models import Base, Product, Inventory, Supplier, PurchaseOrder, Shipment
-from datetime import datetime, timedelta
-import os
+
+import db_service
+from models import Base, Product, Inventory, Supplier, PurchaseOrder, Shipment, utcnow
 
 
 def init_database():
-    """Initialize database and create all tables"""
-    os.makedirs('data', exist_ok=True)
-    engine = create_engine('sqlite:///data/supply_chain.db', echo=False)
+    """Create all tables on the configured database (see config.DATABASE_URL)."""
+    engine = db_service.engine
     Base.metadata.create_all(engine)
     return engine
 
@@ -66,7 +74,7 @@ def seed_data(engine):
                 product_id=1,
                 quantity=150,
                 status='confirmed',
-                created_at=datetime.utcnow() - timedelta(days=2)
+                created_at=utcnow() - timedelta(days=2)
             ),
             PurchaseOrder(
                 id=2,
@@ -74,7 +82,7 @@ def seed_data(engine):
                 product_id=3,
                 quantity=100,
                 status='confirmed',
-                created_at=datetime.utcnow() - timedelta(days=5)
+                created_at=utcnow() - timedelta(days=5)
             )
         ]
         session.add_all(purchase_orders)
@@ -87,13 +95,13 @@ def seed_data(engine):
                 id=1,
                 po_id=1,
                 status='in_transit',
-                expected_arrival=datetime.utcnow() + timedelta(days=3)
+                expected_arrival=utcnow() + timedelta(days=3)
             ),
             Shipment(
                 id=2,
                 po_id=2,
                 status='in_transit',
-                expected_arrival=datetime.utcnow() + timedelta(days=12)
+                expected_arrival=utcnow() + timedelta(days=12)
             )
         ]
         session.add_all(shipments)
@@ -103,9 +111,9 @@ def seed_data(engine):
         print("="*70)
         print("Database seeded successfully")
         print("="*70)
-        print("\nProduct A (Stable): 250 units, PO arriving in 3 days → LOW risk")
-        print("Product B (Volatile): 50 units, no PO → HIGH risk")
-        print("Product C (High Risk): 20 units, delayed shipment → HIGH risk")
+        print("\nProduct A (Stable): 250 units, PO arriving in 3 days -> LOW risk")
+        print("Product B (Volatile): 50 units, no PO -> HIGH risk")
+        print("Product C (High Risk): 20 units, delayed shipment -> HIGH risk")
         print("="*70)
         
     except Exception as e:
@@ -116,7 +124,16 @@ def seed_data(engine):
         session.close()
 
 
+def ensure_database():
+    """Create tables and seed demo data if the database is empty. Idempotent."""
+    engine = init_database()
+    with db_service.get_session() as session:
+        if session.query(Product).count() == 0:
+            seed_data(engine)
+    return engine
+
+
 if __name__ == '__main__':
     engine = init_database()
     seed_data(engine)
-    print("\nDatabase initialized at data/supply_chain.db")
+    print(f"\nDatabase initialized at {engine.url}")

@@ -1,19 +1,24 @@
+# Versions pinned to the set the test suite was run with (Python 3.13, Windows 11).
 
-# LangChain ecosystem
-langgraph>=0.2.0
-langchain>=0.3.0
-langchain-openai>=0.2.0
+# Agent orchestration and LLM access
+langgraph==1.2.16
+langchain-core==1.6.12
+langchain-openai==1.7.2
+langsmith==0.14.11
 
-# Database
-sqlalchemy>=2.0.0
+# Data and validation
+sqlalchemy==2.1.5
+pydantic==2.14.1
+python-dotenv==1.2.4
 
-# Utilities
-python-dotenv>=1.0.0
+# API
+fastapi==0.149.0
+uvicorn[standard]==0.54.0
 
-langsmith>=0.1.0
+# UI
+streamlit==1.66.0
+pandas==3.0.6
 
-aiosqlite>=0.19.0
-
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-pydantic>=2.0.0
+# Tests and the event simulator
+pytest==9.1.1
+httpx==0.28.1
