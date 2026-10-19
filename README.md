@@ -8,6 +8,8 @@
 
 ChainOps reacts to supply chain events (a stock drop, a late shipment, a demand spike). It checks the data, runs five LangGraph agents to recommend a replenishment action, and holds any risky order until a named person approves it. Every decision is stored with the evidence behind it, and the whole workflow is tested against 18 scenarios.
 
+What changed from the original project and how each part was verified: [docs/SUMMARY.md](docs/SUMMARY.md).
+
 It is a portfolio prototype. Orders are **simulated**: an approved order becomes a row in a local SQLite table. No ERP or supplier system is contacted.
 
 ![Decision cycle in the Streamlit UI](docs/screenshots/decision-cycle.png)
@@ -598,7 +600,6 @@ They skip themselves if `OPENROUTER_API_KEY` is not set, and they assert only st
 * **Synchronous processing.** Each request runs its cycle inline; a slow LLM means a slow request. Fine for one-product cycles, not for bulk loads.
 * **SQLite.** Good for a local prototype; concurrent writers serialize.
 * **Approval does not re-check freshness.** A decision approved days later executes on the data it was made with.
-* `demo/demo.py` is the original static snapshot page with pre-captured data. It is kept for reference; the main UI runs the real workflow without a key.
 
 ## 17. Future improvements
 
@@ -635,8 +636,7 @@ ui/app.py                Streamlit UI
 scripts/event_simulator.py   webhook sender and scheduled scanner
 evals/                   scenarios.json, run_evals.py, results/
 tests/                   unit/, integration/, live/
-docs/                    AUDIT.md (baseline audit), screenshots/
-demo/demo.py             original static demo page
+docs/                    AUDIT.md (baseline audit), SUMMARY.md (deliverables), screenshots/
 ```
 
 ## Author
