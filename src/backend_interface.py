@@ -1,112 +1,37 @@
 """
 Backend interface for UI.
-Single entry point that triggers LangGraph workflow.
+Single entry point that triggers the LangGraph workflow.
 UI calls this, never touches agents directly.
 """
 
-import asyncio
-import json
-import time
-from pathlib import Path
-
-from graph import create_supply_chain_graph
+import db_init
+from workflow import run_cycle
 
 
-# #region agent log
-DEBUG_LOG_PATH = Path(__file__).resolve().parents[1] / ".cursor" / "debug.log"
-
-
-def _agent_debug_log(
-    hypothesis_id: str,
-    location: str,
-    message: str,
-    data: dict | None = None,
-    run_id: str = "initial",
-) -> None:
-    """Lightweight NDJSON logger for debug-mode instrumentation (backend)."""
-    payload = {
-        "sessionId": "debug-session",
-        "runId": run_id,
-        "hypothesisId": hypothesis_id,
-        "location": location,
-        "message": message,
-        "data": data or {},
-        "timestamp": int(time.time() * 1000),
-    }
-    try:
-        with DEBUG_LOG_PATH.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\n")
-    except Exception:
-        # Logging failures must never affect business logic
-        pass
-
-
-# #endregion
-
-
-def run_one_cycle(product_id: int = 1) -> dict:
+def run_one_cycle(product_id: int = 1, overlay: dict | None = None, dry_run: bool = False) -> dict:
     """
     Execute one complete decision cycle for a product.
 
     Args:
         product_id: Product to analyze (1, 2, or 3)
+        overlay: Optional what-if changes (see overlay.SnapshotOverlay).
+                 A cycle with an overlay is a scenario and always a dry run.
+        dry_run: Record the decision but never write a purchase order.
 
     Returns:
-        Structured output with all agent decisions and reasoning
+        The stored decision record (see governance.to_dict), plus the keys
+        the original UI used (db_snapshot, decision_risk, human_feedback).
     """
-    # #region agent log
-    _agent_debug_log(
-        hypothesis_id="H3",
-        location="src/backend_interface.py:run_one_cycle:start",
-        message="Entered run_one_cycle",
-        data={"product_id": int(product_id)},
+    db_init.ensure_database()
+    record = run_cycle(
+        product_id,
+        trigger="SCENARIO" if overlay else "MANUAL",
+        overlay=overlay,
+        dry_run=dry_run or bool(overlay),
     )
-    # #endregion
-
-    # Create graph
-    app = create_supply_chain_graph()
-
-    # Initial state
-    initial_state = {
-        "product_id": product_id,
-        "db_snapshot": {},
-        "agent_outputs": {},
-        "final_decision": None,
-        "decision_risk": None,
-        "human_feedback": None,
-    }
-
-    # Run async workflow synchronously
-    async def _run():
-        final_state = {}
-        async for event in app.astream(initial_state):
-            for node_name, node_output in event.items():
-                for key, value in node_output.items():
-                    if key == "agent_outputs" and key in final_state:
-                        final_state["agent_outputs"].update(value)
-                    else:
-                        final_state[key] = value
-        return final_state
-
-    result = asyncio.run(_run())
-
-    # #region agent log
-    _agent_debug_log(
-        hypothesis_id="H4",
-        location="src/backend_interface.py:run_one_cycle:end",
-        message="Completed run_one_cycle",
-        data={
-            "has_final_decision": result.get("final_decision") is not None,
-            "keys": list(result.keys()),
-        },
-    )
-    # #endregion
-
-    # Return structured output
     return {
-        "db_snapshot": result.get("db_snapshot", {}),
-        "agent_outputs": result.get("agent_outputs", {}),
-        "final_decision": result.get("final_decision"),
-        "decision_risk": result.get("decision_risk"),
-        "human_feedback": result.get("human_feedback"),
+        **record,
+        "db_snapshot": record.get("snapshot") or {},
+        "decision_risk": record.get("risk_level"),
+        "human_feedback": record.get("status"),
     }
