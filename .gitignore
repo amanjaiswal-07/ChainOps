@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*
+
+env/
+.env/
+venv/
+.venv/
+
+.cursor/
+
+__pycache__/
+project_structure.txt
+src/__pycache__/
+data/
+
