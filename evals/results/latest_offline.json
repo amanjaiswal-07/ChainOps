@@ -1,6 +1,6 @@
 {
   "mode": "offline",
-  "generated_at": "2026-10-19 22:15 UTC",
+  "generated_at": "2026-10-19 22:49 UTC",
   "metrics": {
     "scenarios_passed": {
       "correct": 18,
@@ -27,6 +27,7 @@
       "total": 50
     },
     "llm_rule_disagreements_clean_runs": 0,
+    "supplier_deviations_clean_runs": 0,
     "injected_faults_detected": {
       "correct": 3,
       "total": 3
@@ -37,8 +38,8 @@
     },
     "errors": 0,
     "cycle_latency_ms": {
-      "p50": 23,
-      "max": 38
+      "p50": 12,
+      "max": 124
     },
     "grounded_explanations": {
       "correct": 12,
@@ -153,9 +154,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 38
+        "cycle_latency_ms": 124
       },
-      "latency_ms": 53.9,
+      "latency_ms": 135.1,
       "expected": {
         "status": "NO_ACTION_REQUIRED",
         "decision_type": "HOLD",
@@ -284,9 +285,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 20
+        "cycle_latency_ms": 10
       },
-      "latency_ms": 56.8,
+      "latency_ms": 23.3,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -413,9 +414,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 22
+        "cycle_latency_ms": 11
       },
-      "latency_ms": 62.5,
+      "latency_ms": 49.1,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -480,9 +481,9 @@
           "logistics": null,
           "coordinator": null
         },
-        "cycle_latency_ms": 18
+        "cycle_latency_ms": 8
       },
-      "latency_ms": 44.3,
+      "latency_ms": 17.0,
       "expected": {
         "status": "VALIDATION_FAILED",
         "validation_status": "FAILED",
@@ -509,7 +510,7 @@
       "observed": {
         "schema_error": "Input should be greater than or equal to 0"
       },
-      "latency_ms": 2.6,
+      "latency_ms": 0.9,
       "expected": {
         "schema_error": true
       }
@@ -624,9 +625,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 25
+        "cycle_latency_ms": 14
       },
-      "latency_ms": 53.8,
+      "latency_ms": 22.6,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -749,9 +750,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 26
+        "cycle_latency_ms": 12
       },
-      "latency_ms": 55.5,
+      "latency_ms": 21.5,
       "expected": {
         "status": "NO_ACTION_REQUIRED",
         "decision_type": "HOLD",
@@ -866,9 +867,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 23
+        "cycle_latency_ms": 10
       },
-      "latency_ms": 45.9,
+      "latency_ms": 18.3,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -979,9 +980,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 23
+        "cycle_latency_ms": 12
       },
-      "latency_ms": 44.8,
+      "latency_ms": 44.7,
       "expected": {
         "status": "PENDING_APPROVAL",
         "approval_required": true,
@@ -1097,9 +1098,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 22
+        "cycle_latency_ms": 11
       },
-      "latency_ms": 43.6,
+      "latency_ms": 27.0,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -1238,9 +1239,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 26
+        "cycle_latency_ms": 13
       },
-      "latency_ms": 50.5,
+      "latency_ms": 22.0,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -1382,9 +1383,9 @@
           }
         },
         "grounded": false,
-        "cycle_latency_ms": 34
+        "cycle_latency_ms": 12
       },
-      "latency_ms": 60.3,
+      "latency_ms": 21.1,
       "expected": {
         "status": "PENDING_APPROVAL",
         "decision_type": "REORDER",
@@ -1493,9 +1494,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 19
+        "cycle_latency_ms": 12
       },
-      "latency_ms": 62.3,
+      "latency_ms": 29.3,
       "expected": {
         "status": "PENDING_APPROVAL",
         "duplicate_detected": true,
@@ -1604,9 +1605,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 24
+        "cycle_latency_ms": 12
       },
-      "latency_ms": 50.7,
+      "latency_ms": 37.1,
       "expected": {
         "status": "PENDING_APPROVAL",
         "intermediate_status": "EXECUTION_FAILED",
@@ -1655,7 +1656,7 @@
         },
         "cycle_latency_ms": null
       },
-      "latency_ms": 35.2,
+      "latency_ms": 11.8,
       "expected": {
         "status": "VALIDATION_FAILED",
         "agents_ran": false,
@@ -1700,7 +1701,7 @@
         },
         "cycle_latency_ms": null
       },
-      "latency_ms": 38.3,
+      "latency_ms": 9.5,
       "expected": {
         "status": "NOT_TRIGGERED",
         "agents_ran": false
@@ -1745,9 +1746,9 @@
           "logistics": null,
           "coordinator": null
         },
-        "cycle_latency_ms": 12
+        "cycle_latency_ms": 10
       },
-      "latency_ms": 50.3,
+      "latency_ms": 34.6,
       "expected": {
         "status": "VALIDATION_FAILED",
         "agents_ran": false,
@@ -1854,9 +1855,9 @@
           }
         },
         "grounded": true,
-        "cycle_latency_ms": 29
+        "cycle_latency_ms": 13
       },
-      "latency_ms": 60.8,
+      "latency_ms": 22.7,
       "expected": {
         "status": "PENDING_APPROVAL",
         "final_status": "EXECUTED",

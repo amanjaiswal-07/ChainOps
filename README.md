@@ -4,7 +4,7 @@
 ![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-32CD32?style=plastic)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=plastic&logo=fastapi&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-ff4b4b?style=plastic&logo=streamlit&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen?style=plastic)
+![Tests](https://img.shields.io/badge/tests-143%20passing-brightgreen?style=plastic)
 
 ChainOps reacts to supply chain events (a stock drop, a late shipment, a demand spike). It checks the data, runs five LangGraph agents to recommend a replenishment action, and holds any risky order until a named person approves it. Every decision is stored with the evidence behind it, and the whole workflow is tested against 18 scenarios.
 
@@ -236,6 +236,7 @@ Operational risks such as a late shipment or an unreliable supplier are **not** 
 5. the quantity exceeds `APPROVAL_QUANTITY_THRESHOLD` (300)
 6. the quantity was capped at `MAX_ORDER_QUANTITY` (1000)
 7. the data passed validation only with warnings
+8. the coordinator LLM chose a supplier other than the most reliable one (found in live runs; allowed by its prompt, but a human should see it)
 
 A HOLD places no order, so it never needs approval (the original project's rule). The reasons are still recorded.
 
@@ -444,22 +445,38 @@ PASS  S18  Double approval does not create a second order
 
 LLM free text is never compared with exact strings. One explicitly defined text criterion is reported: the coordinator's explanation must mention the actual stock level ("grounded"). There is no LLM-as-judge; it would add non-determinism and is not needed for the properties tested.
 
-**Actual results** (offline mode, `python evals/run_evals.py`, report in [`evals/results/latest_offline.md`](evals/results/latest_offline.md)):
+**Actual results.** Offline: `python evals/run_evals.py` ([report](evals/results/latest_offline.md)). Live: `python evals/run_evals.py --llm live` with `openai/gpt-4o-mini` through OpenRouter ([report of the last run](evals/results/latest_live.md)). The live suite was run three times, because LLM output varies between runs. Run 1 was before rule 8 of the approval policy existed; its supplier-deviation count was read from the stored decision metadata.
 
-| Metric | Result |
-|---|---|
-| Scenarios passed | 18/18 |
-| Risk classification | 5/5 |
-| Decision agreement with expected outcome | 10/10 |
-| Human-approval routing | 10/10 |
-| Validation enforcement (invalid input stopped before agents) | 4/4 |
-| Structured output validity (runs without injected faults) | 50/50 |
-| Injected faults detected | 3/3 |
-| Workflow completion | 17/17 |
-| Grounded coordinator explanations | 12/13 (the miss is S12, whose injected answer is deliberately ungrounded) |
-| Cycle latency p50 / max | 23 ms / 38 ms |
+| Metric | Offline | Live (3 runs) |
+|---|---|---|
+| Scenarios passed | 18/18 | 18/18 in every run |
+| Risk classification | 5/5 | 5/5 in every run |
+| Decision agreement with expected outcome | 10/10 | 10/10 in every run |
+| Human-approval routing | 10/10 | 10/10 in every run |
+| Validation enforcement (invalid input stopped before agents) | 4/4 | 4/4 in every run |
+| Structured output validity, runs without injected faults | 50/50 | 50/50 in every run |
+| LLM answer disagreed with the rule baseline | n/a (rules answer) | 0 in every run |
+| Coordinator picked a supplier other than the most reliable | n/a | 1, 2 and 1 of 10 decisions (rule 8 now sends these to a human) |
+| Injected faults detected | 3/3 | 3/3 in every run |
+| Workflow completion | 17/17 | 17/17 in every run |
+| Grounded coordinator explanations (mention actual stock) | 12/13 | 11/13, 10/13, 11/13 |
+| Cycle latency p50 / max | 12 ms / 124 ms | about 11 to 12 s / 14 to 16 s |
 
-**Read these numbers correctly.** In offline mode the agents answer with the same rules the expected outcomes are based on, so 100% agreement shows that **the orchestration, validation, governance and fault handling work**. It does not measure LLM quality. Running `python evals/run_evals.py --llm live` with an API key measures the real model on the same scenarios, including how often it disagrees with the rules. I did not have an API key while building this, so **no live-mode results are reported**.
+**What the numbers mean.**
+
+* **Offline** the agents answer with the same rules the expected outcomes are based on, so 100% shows that orchestration, validation, governance and fault handling work. It does not measure the LLM.
+* **Live**, gpt-4o-mini followed the format and the classification rules in every un-injected call, so the guard rails never had to correct a classification. The 18/18 is still partly guaranteed by design: when the model is wrong, the rule baseline wins and the case is sent to a human. That is the point of the architecture, so read the live score as "the system stayed safe with a real model", not as "the model is always right".
+* **What the live runs found:**
+  * The coordinator sometimes chose Fast Shipping Inc (85%) over Reliable Corp (95%), with reasoning that did not justify it. Its prompt allows trade-offs, so this was valid output, but it was only visible in the metadata. It is now rule 8 of the approval policy and is tracked as a metric.
+  * Explanations can be incomplete. In one case the risk agent's classification was correct but its reasoning named only one of the two suppliers under 90%. Only the classification is checked automatically; explanation completeness is not.
+  * Latency is dominated by five sequential LLM calls (about 2 to 3 s each).
+* Grounding misses include S12, whose injected answer is deliberately ungrounded. The remaining misses are explanations that discussed stock without stating the number.
+
+Live mode in the UI, with the model's own reasoning (`Answer source: llm`):
+
+![Live LLM decision with coordinator reasoning](docs/screenshots/live-llm-decision.png)
+
+**Tracing.** With `LANGCHAIN_TRACING_V2=true` and a LangSmith key in `.env`, every decision cycle appears in LangSmith as a `LangGraph` run with each agent's LLM call nested inside, tagged with the agent name and its inputs (project `chainops`). This was checked during the live runs.
 
 ## 12. Installation and configuration
 
@@ -550,7 +567,7 @@ python -m src.main
 pytest
 ```
 
-142 tests, no API key or network needed: 85 unit tests (`tests/unit`: event schemas, business rules, overlays, output parsers, rule baselines, approval policy, state machine including a concurrency test) and 57 integration tests (`tests/integration`: full graph runs with mocked LLM answers, the event pipeline, every API endpoint through FastAPI's TestClient, and all 18 evaluation scenarios).
+143 tests, no API key or network needed: 86 unit tests (`tests/unit`: event schemas, business rules, overlays, output parsers, rule baselines, approval policy, state machine including a concurrency test) and 57 integration tests (`tests/integration`: full graph runs with mocked LLM answers, the event pipeline, every API endpoint through FastAPI's TestClient, and all 18 evaluation scenarios).
 
 Tests that call the real LLM are marked `live` and excluded by default:
 
@@ -558,7 +575,7 @@ Tests that call the real LLM are marked `live` and excluded by default:
 pytest -m live
 ```
 
-They skip themselves if `OPENROUTER_API_KEY` is not set, and they assert only structure and safety properties, never wording.
+They skip themselves if `OPENROUTER_API_KEY` is not set, and they assert only structure and safety properties, never wording. Both passed against `openai/gpt-4o-mini` (2 tests, about 34 s).
 
 ## 15. What is simulated and what is real
 
@@ -576,7 +593,8 @@ They skip themselves if `OPENROUTER_API_KEY` is not set, and they assert only st
   * open purchase orders are not counted as stock, so re-running after an approved order recommends ordering again.
   * supplier risk is HIGH if *any* supplier is under 90%, even one that is not selected.
 * **No authentication.** The reviewer name is recorded but not verified.
-* **No live LLM evaluation results** yet (no API key was available during development).
+* **Live evaluation covers one model** (`openai/gpt-4o-mini`) over three runs of 18 scenarios. That is small and model-specific; other models may behave differently.
+* **Explanation quality is not scored.** Only structured fields and one grounding criterion are checked; an LLM explanation can be correct but incomplete.
 * **Synchronous processing.** Each request runs its cycle inline; a slow LLM means a slow request. Fine for one-product cycles, not for bulk loads.
 * **SQLite.** Good for a local prototype; concurrent writers serialize.
 * **Approval does not re-check freshness.** A decision approved days later executes on the data it was made with.

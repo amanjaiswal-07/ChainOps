@@ -96,6 +96,14 @@ def test_llm_rule_disagreement_requires_approval():
     assert risk == "HIGH"
 
 
+def test_non_default_supplier_choice_requires_approval():
+    state = _state()
+    state["final_decision"]["meta"]["supplier_choice"] = {"llm": 2, "most_reliable": 1}
+    risk, reasons = assess_decision_risk(state)
+    assert risk == "HIGH"
+    assert "coordinator chose supplier 2 instead of the most reliable supplier 1" in reasons
+
+
 def test_large_order_requires_approval():
     risk, reasons = assess_decision_risk(_state(quantity=config.APPROVAL_QUANTITY_THRESHOLD + 1))
     assert risk == "HIGH" and any("approval threshold" in r for r in reasons)

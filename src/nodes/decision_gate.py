@@ -16,6 +16,9 @@ def assess_decision_risk(state: SupplyChainState) -> tuple[str, list[str]]:
       5. the order quantity exceeds APPROVAL_QUANTITY_THRESHOLD
       6. the order quantity was capped at MAX_ORDER_QUANTITY
       7. the input data passed validation only with data-quality warnings
+      8. the coordinator LLM picked a supplier other than the most reliable
+         one (allowed by its prompt as a trade-off, but a human should see it;
+         found in live evaluation runs)
 
     HOLD places no order and has no side effects, so it never needs
     approval (original project rule). Any AI issues are still listed
@@ -50,6 +53,11 @@ def assess_decision_risk(state: SupplyChainState) -> tuple[str, list[str]]:
             reasons.append(f"{name} agent output failed validation ({'; '.join(meta.get('issues', [])) or 'see record'})")
         for field, values in (meta.get('disagreements') or {}).items():
             reasons.append(f"{name} agent LLM said {field}={values['llm']} but the rule gives {values['rule']}")
+
+    choice = metas["coordinator"].get('supplier_choice')
+    if choice:
+        reasons.append(f"coordinator chose supplier {choice['llm']} instead of the most reliable "
+                       f"supplier {choice['most_reliable']}")
 
     # 5-6. Size of the action
     if quantity > config.APPROVAL_QUANTITY_THRESHOLD:

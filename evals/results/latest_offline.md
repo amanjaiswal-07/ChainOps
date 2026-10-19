@@ -1,6 +1,6 @@
 # ChainOps evaluation (offline mode)
 
-Generated 2026-10-19 22:15 UTC by `python evals/run_evals.py --llm offline`. Each scenario ran on a fresh seed database.
+Generated 2026-10-19 22:49 UTC by `python evals/run_evals.py --llm offline`. Each scenario ran on a fresh seed database.
 
 | Metric | Result |
 |---|---|
@@ -11,11 +11,12 @@ Generated 2026-10-19 22:15 UTC by `python evals/run_evals.py --llm offline`. Eac
 | Validation enforcement (invalid input stopped before agents) | 4/4 (100%) |
 | Structured output validity (runs without injected faults) | 50/50 (100%) |
 | LLM vs rule disagreements (runs without injected faults) | 0 |
+| Coordinator chose a non-default supplier (runs without injected faults) | 0 |
 | Injected faults detected | 3/3 (100%) |
 | Workflow completion | 17/17 (100%) |
 | Crashed scenarios | 0 |
 | Grounded coordinator explanations (mention actual stock) | 12/13 (92%) |
-| Cycle latency p50 / max | 23 ms / 38 ms |
+| Cycle latency p50 / max | 12 ms / 124 ms |
 
 | ID | Scenario | Category | Result | Failed checks |
 |---|---|---|---|---|

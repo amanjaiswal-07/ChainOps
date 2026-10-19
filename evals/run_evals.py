@@ -296,6 +296,7 @@ def compute_metrics(results: list[dict], scenarios: list[dict]) -> dict:
             for r in invalid_inputs),
         "structured_output_validity_clean_runs": rate(m.get("output_valid") is not False for m in clean_metas),
         "llm_rule_disagreements_clean_runs": sum(len(m.get("disagreements") or {}) for m in clean_metas),
+        "supplier_deviations_clean_runs": sum(1 for m in clean_metas if m.get("supplier_choice")),
         "injected_faults_detected": rate(
             all(c["passed"] for c in r["checks"] if "detected" in c["check"] or "disagreement" in c["check"])
             for r in results if r["id"] in injected),
@@ -332,6 +333,7 @@ def write_report(mode: str, results: list[dict], metrics: dict) -> Path:
         f"| Validation enforcement (invalid input stopped before agents) | {pct(metrics['validation_enforcement'])} |",
         f"| Structured output validity (runs without injected faults) | {pct(metrics['structured_output_validity_clean_runs'])} |",
         f"| LLM vs rule disagreements (runs without injected faults) | {metrics['llm_rule_disagreements_clean_runs']} |",
+        f"| Coordinator chose a non-default supplier (runs without injected faults) | {metrics['supplier_deviations_clean_runs']} |",
         f"| Injected faults detected | {pct(metrics['injected_faults_detected'])} |",
         f"| Workflow completion | {pct(metrics['workflow_completion'])} |",
         f"| Crashed scenarios | {metrics['errors']} |",
