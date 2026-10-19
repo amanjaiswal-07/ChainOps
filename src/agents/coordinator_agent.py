@@ -1,5 +1,7 @@
 from state import SupplyChainState
-from llm_config import get_llm
+from llm_config import invoke_llm
+from agents.outputs import parse_coordinator, resolve
+from agents.rules import coordinator_rule
 
 
 async def coordinator_agent_node(state: SupplyChainState) -> dict:
@@ -12,6 +14,13 @@ async def coordinator_agent_node(state: SupplyChainState) -> dict:
     - Final decision is made with full explanation
     
     LLM handles conflict resolution and step-by-step reasoning.
+
+    Guard rails on the LLM answer (see outputs.resolve):
+    - decision type, quantity and expedite must follow the inventory and
+      logistics agents, as the coordination rules below require; a
+      mismatch is overridden and recorded
+    - the supplier is the LLM's choice, but only if it exists
+    - malformed output falls back to the rule baseline
     """
     snapshot = state['db_snapshot']
     agent_outputs = state['agent_outputs']
@@ -29,7 +38,7 @@ async def coordinator_agent_node(state: SupplyChainState) -> dict:
     
     # Format supplier options
     supplier_options = "\n".join([
-        f"  • Supplier {s['id']} ({s['name']}): "
+        f"  - Supplier {s['id']} ({s['name']}): "
         f"reliability {s['reliability_score']:.0%}, "
         f"lead time {s['lead_time_days']} days"
         for s in suppliers
@@ -104,91 +113,66 @@ REASONING: [Step-by-step explanation covering:
 ]
 """
     
-    # Invoke LLM for coordination
-    llm = get_llm()
-    response = llm.invoke(
-    prompt,
-    config={
-        "run_name": "coordinator_agent_final_decision",
-        "tags": ["coordinator", "decision_synthesis", "conflict_resolution"],
-        "metadata": {
-            "agent": "coordinator",
-            "num_agent_inputs": len(agent_outputs),
-            "demand_risk": demand_output.get('demand_risk'),
-            "inventory_action": inventory_output.get('action'),
-            "supplier_risk": risk_output.get('supplier_risk'),
-            "logistics_risk": risk_output.get('logistics_risk'),
-            "expedite_recommended": logistics_output.get('expedite'),
-            "num_suppliers_available": len(suppliers),
-            "critical_decision": True  # Coordinator makes final call
-        }
-    }
-)
+    baseline = coordinator_rule(snapshot, agent_outputs)
+    response = invoke_llm(
+        "coordinator",
+        prompt,
+        offline_response=(f"DECISION_TYPE: {baseline['decision_type']}\n"
+                          f"SUPPLIER_ID: {baseline['supplier_id'] or 'N/A'}\n"
+                          f"QUANTITY: {baseline['quantity']}\n"
+                          f"EXPEDITE: {str(baseline['expedite']).lower()}\n"
+                          f"REASONING: {baseline['reasoning']}"),
+        run_config={
+            "run_name": "coordinator_agent_final_decision",
+            "tags": ["coordinator", "decision_synthesis", "conflict_resolution"],
+            "metadata": {
+                "agent": "coordinator",
+                "num_agent_inputs": len(agent_outputs),
+                "demand_risk": demand_output.get('demand_risk'),
+                "inventory_action": inventory_output.get('action'),
+                "supplier_risk": risk_output.get('supplier_risk'),
+                "logistics_risk": risk_output.get('logistics_risk'),
+                "expedite_recommended": logistics_output.get('expedite'),
+                "num_suppliers_available": len(suppliers),
+                "critical_decision": True  # Coordinator makes final call
+            }
+        },
+    )
 
-    response_text = response.content
-    
-    # Parse LLM response
-    decision_type = "HOLD"
-    supplier_id = None
-    quantity = 0
-    expedite = False
-    explanation = response_text
-    
-    try:
-        lines = response_text.split('\n')
-        
-        for line in lines:
-            line_upper = line.upper()
-            
-            if "DECISION_TYPE:" in line_upper:
-                if "REORDER" in line_upper:
-                    decision_type = "REORDER"
-                else:
-                    decision_type = "HOLD"
-            
-            elif "SUPPLIER_ID:" in line and decision_type == "REORDER":
-                # Extract number
-                parts = line.split(':')[1].strip()
-                try:
-                    supplier_id = int(parts.split()[0])
-                except:
-                    # Default to highest reliability supplier
-                    supplier_id = max(suppliers, key=lambda s: s['reliability_score'])['id']
-            
-            elif "QUANTITY:" in line_upper:
-                parts = line.split(':')[1].strip()
-                try:
-                    quantity = int(parts.split()[0])
-                except:
-                    quantity = inventory_output.get('quantity', 0)
-            
-            elif "EXPEDITE:" in line_upper:
-                expedite = "TRUE" in line_upper
-        
-        # Extract reasoning section
-        if "REASONING:" in response_text:
-            explanation = response_text.split("REASONING:")[1].strip()
-    
-    except Exception as e:
-        # Fallback: use agent recommendations directly
-        if inventory_output.get('action') == 'REORDER':
-            decision_type = "REORDER"
-            quantity = inventory_output.get('quantity', 0)
-            supplier_id = max(suppliers, key=lambda s: s['reliability_score'])['id']
-            expedite = logistics_output.get('expedite', False)
-        explanation = f"Coordination parsing failed. Using direct agent outputs. Error: {str(e)}\n\n{response_text}"
-    
+    decision = resolve(response, parse_coordinator, baseline,
+                       rule_fields=("decision_type", "quantity", "expedite"))
+    meta = decision["meta"]
+
+    # Supplier: the LLM may choose, but only a supplier that exists.
+    supplier_id = decision["supplier_id"]
+    valid_ids = {s['id'] for s in suppliers}
+    if decision["decision_type"] == "HOLD":
+        supplier_id = None
+    elif supplier_id is None and "decision_type" in meta["disagreements"]:
+        # LLM said HOLD but the rules require REORDER: it never picked a supplier.
+        supplier_id = baseline["supplier_id"]
+    elif supplier_id not in valid_ids:
+        if not meta["fallback_used"]:
+            meta["output_valid"] = False
+            meta["issues"].append(f"LLM selected unknown supplier {supplier_id}; "
+                                  f"using supplier {baseline['supplier_id']}")
+        supplier_id = baseline["supplier_id"]
+    elif supplier_id != baseline["supplier_id"]:
+        # Allowed (the prompt permits trade-offs) but worth showing.
+        meta["supplier_choice"] = {"llm": supplier_id, "most_reliable": baseline["supplier_id"]}
+
     # Build final decision structure
     final_decision = {
-        'decision_type': decision_type,
+        'decision_type': decision["decision_type"],
         'details': {
             'supplier_id': supplier_id,
-            'quantity': quantity,
-            'expedite': expedite
+            'quantity': decision["quantity"],
+            'expedite': decision["expedite"]
         },
-        'explanation': explanation
+        'explanation': decision["reasoning"],
+        'meta': meta,
     }
-    
+
     return {
         'final_decision': final_decision
     }

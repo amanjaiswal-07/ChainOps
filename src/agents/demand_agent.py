@@ -1,21 +1,27 @@
 from state import SupplyChainState
-from llm_config import get_llm
+from llm_config import invoke_llm
+from agents.outputs import parse_demand, resolve
+from agents.rules import demand_rule
 
 
 async def demand_agent_node(state: SupplyChainState) -> dict:
     """
     Analyze demand signals using LLM reasoning with explicit criteria.
+
+    The LLM classifies demand risk; the same rules are evaluated in code
+    (rules.demand_rule) and the two are reconciled in outputs.resolve():
+    the LLM may escalate risk but cannot downgrade it.
     """
     snapshot = state['db_snapshot']
     inventory = snapshot['inventory']
     purchase_orders = snapshot['purchase_orders']
-    
+
     # Build context
     po_list = "\n".join([
         f"  - PO #{po['id']}: {po['quantity']} units, status: {po['status']}"
         for po in purchase_orders
     ]) if purchase_orders else "  - No active purchase orders"
-    
+
     # Detailed prompt with explicit rules
     prompt = f"""You are a supply chain demand analyst.
 
@@ -41,12 +47,13 @@ FORMAT:
 DEMAND_RISK: [LOW or HIGH]
 REASONING: [Your explanation based on the rules]
 """
-    
-    # Invoke LLM
-    llm = get_llm()
-    response = llm.invoke(
+
+    baseline = demand_rule(snapshot)
+    response = invoke_llm(
+        "demand",
         prompt,
-        config={
+        offline_response=f"DEMAND_RISK: {baseline['demand_risk']}\nREASONING: {baseline['reasoning']}",
+        run_config={
             "run_name": "demand_agent_analysis",  # Shows up in LangSmith UI
             "tags": ["demand", "risk_classification", "inventory_check"],
             "metadata": {
@@ -55,27 +62,11 @@ REASONING: [Your explanation based on the rules]
                 "reorder_point": inventory['reorder_point'],
                 "active_pos": len(purchase_orders)
             }
-        }
+        },
     )
-    response_text = response.content
-    
-    # Parse response
-    demand_risk = "UNKNOWN"
-    reasoning = response_text
-    
-    if "DEMAND_RISK:" in response_text and "REASONING:" in response_text:
-        parts = response_text.split("REASONING:")
-        risk_part = parts[0].replace("DEMAND_RISK:", "").strip()
-        reasoning_part = parts[1].strip()
-        
-        demand_risk = "HIGH" if "HIGH" in risk_part.upper() else "LOW"
-        reasoning = reasoning_part
-    
+
     return {
         'agent_outputs': {
-            'demand': {
-                "demand_risk": demand_risk,
-                "reasoning": reasoning
-            }
+            'demand': resolve(response, parse_demand, baseline, risk_fields=("demand_risk",))
         }
     }
