@@ -644,4 +644,4 @@ docs/                    AUDIT.md (baseline audit), SUMMARY.md (deliverables), s
 **Aman Jaiswal**
 
 * GitHub: [github.com/amanjaiswal-07](https://github.com/amanjaiswal-07)
-* LeetCode: [leetcode.com/u/amanjaiswal7](https://leetcode.com/u/amanjaiswal7/)
+* LinkedIn: [linkedin.com/in/aman-jaiswal-aa31b51b5](https://www.linkedin.com/in/aman-jaiswal-aa31b51b5)
